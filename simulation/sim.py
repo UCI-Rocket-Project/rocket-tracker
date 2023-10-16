@@ -14,7 +14,10 @@ from panda3d.core import Point3
 
 from rocket import Rocket
 
+from alpaca.telescope import Telescope, TelescopeAxes
 
+
+T = Telescope('localhost:32323', 0) # Local Omni Simulator
 
 class Sim(ShowBase):
 
@@ -30,17 +33,17 @@ class Sim(ShowBase):
 
         # Load the environment model.
 
-        # self.scene = self.loader.loadModel("models/environment")
+        self.scene = self.loader.loadModel("models/environment")
 
         # # Reparent the model to render.
 
-        # self.scene.reparentTo(self.render)
+        self.scene.reparentTo(self.render)
 
         # # Apply scale and position transforms on the model.
 
-        # self.scene.setScale(0.25, 0.25, 0.25)
+        self.scene.setScale(0.25, 0.25, 0.25)
 
-        # self.scene.setPos(-8, 42, 0)
+        self.scene.setPos(-8, 42, 0)
 
 
         # Add the spinCameraTask procedure to the task manager.
@@ -58,16 +61,16 @@ class Sim(ShowBase):
 
         self.rocket = Rocket()
         self.rocket.pos = np.array([-1,0,0], dtype=float)
-        self.rocket.acc = np.array([0,0,1], dtype=float)
+        self.rocket.acc = np.array([0,0,0.1], dtype=float)
 
         self.camera.setPos(0,-100,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         self.camLens.setFov(0.9)
+        # self.camLens.setFov(30)
         # 10k feet = 3 km
 
     def rocketPhysicsTask(self, task):
-        self.rocket.step(0.1)
+        self.rocket.step(task.time)
         self.rocket_model.setPos(*self.rocket.pos.tolist())
-        print(self.rocket.pos[2])
         return Task.cont
 
     # Define a procedure to move the camera.
@@ -76,9 +79,8 @@ class Sim(ShowBase):
 
         # angleDegrees = task.time * 6.0
         angleDegrees = np.rad2deg(np.arctan(self.rocket.pos[2]/100))
-
-
-        self.camera.setHpr(0, angleDegrees, 0)
+        T.SlewToAltAzAsync(0,angleDegrees)
+        self.camera.setHpr(T.Azimuth,T.Altitude,0)
 
         # self.screenshot()
 
