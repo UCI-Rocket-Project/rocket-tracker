@@ -1,5 +1,6 @@
 from math import pi, sin, cos
 import numpy as np
+from time import sleep
 
 
 from direct.showbase.ShowBase import ShowBase
@@ -33,17 +34,17 @@ class Sim(ShowBase):
 
         # Load the environment model.
 
-        self.scene = self.loader.loadModel("models/environment")
+        # self.scene = self.loader.loadModel("models/environment")
 
         # # Reparent the model to render.
 
-        self.scene.reparentTo(self.render)
+        # self.scene.reparentTo(self.render)
 
         # # Apply scale and position transforms on the model.
 
-        self.scene.setScale(0.25, 0.25, 0.25)
+        # self.scene.setScale(0.25, 0.25, 0.25)
 
-        self.scene.setPos(-8, 42, 0)
+        # self.scene.setPos(-8, 42, 0)
 
 
         # Add the spinCameraTask procedure to the task manager.
@@ -60,17 +61,18 @@ class Sim(ShowBase):
         self.rocket_model.reparentTo(self.render)
 
         self.rocket = Rocket()
-        self.rocket.pos = np.array([-1,0,0], dtype=float)
-        self.rocket.acc = np.array([0,0,0.1], dtype=float)
-
-        self.camera.setPos(0,-100,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
+        self.camera_dist = 1000
+        self.camera.setPos(0,-self.camera_dist,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
+        # self.camLens.setFov(0.9)
         self.camLens.setFov(0.9)
-        # self.camLens.setFov(30)
+        T.SlewToAltAzAsync(0,0)
+        while T.Slewing:
+            sleep(0.1)
         # 10k feet = 3 km
 
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
-        self.rocket_model.setPos(*self.rocket.pos.tolist())
+        self.rocket_model.setPos(0,0,self.rocket.height)
         return Task.cont
 
     # Define a procedure to move the camera.
@@ -78,7 +80,8 @@ class Sim(ShowBase):
     def spinCameraTask(self, task):
 
         # angleDegrees = task.time * 6.0
-        angleDegrees = np.rad2deg(np.arctan(self.rocket.pos[2]/100))
+        angleDegrees = np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
+        print(f"Setpoint: {angleDegrees}, Actual: {T.Altitude}")
         T.SlewToAltAzAsync(0,angleDegrees)
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
 
