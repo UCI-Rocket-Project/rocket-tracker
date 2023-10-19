@@ -11,7 +11,8 @@ from direct.actor.Actor import Actor
 
 from direct.interval.IntervalGlobal import Sequence
 
-from panda3d.core import Point3
+from panda3d.core import Point3 
+from panda3d.physics import ActorNode
 
 from rocket import Rocket
 
@@ -61,14 +62,18 @@ class Sim(ShowBase):
         self.rocket_model.reparentTo(self.render)
 
         self.rocket = Rocket()
-        self.camera_dist = 1000
+        self.camera_dist = 600
         self.camera.setPos(0,-self.camera_dist,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         # self.camLens.setFov(0.9)
         self.camLens.setFov(0.9)
+        T.AbortSlew()
         T.SlewToAltAzAsync(0,0)
         while T.Slewing:
             sleep(0.1)
         # 10k feet = 3 km
+        self.total_err = 0
+        self.prev_err = 0
+        self.setpoints = []
 
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
@@ -80,9 +85,18 @@ class Sim(ShowBase):
     def spinCameraTask(self, task):
 
         # angleDegrees = task.time * 6.0
-        angleDegrees = np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
-        print(f"Setpoint: {angleDegrees}, Actual: {T.Altitude}")
-        T.SlewToAltAzAsync(0,angleDegrees)
+        setpoint = np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
+        curr = T.Altitude
+        err = setpoint - curr
+        d = err - self.prev_err 
+        self.prev_err = err
+        self.total_err+=err
+        KP, KI, KD = 10,0,1
+        # T.SlewToAltAzAsync(0,angleDegrees)
+        control_input = KP*err + KI*self.total_err - KD * d
+        clipped_input = np.clip(control_input,-6,6)
+        print(control_input, setpoint, curr, clipped_input)
+        T.MoveAxis(TelescopeAxes.axisSecondary, -clipped_input)
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
 
         # self.screenshot()
