@@ -2,6 +2,7 @@ import numpy as np
 import os
 from time import sleep
 import cv2 as cv
+import matplotlib.pyplot as plt
 
 
 from direct.showbase.ShowBase import ShowBase
@@ -18,6 +19,7 @@ from panda3d.physics import ActorNode
 from rocket import Rocket
 
 from alpaca.telescope import Telescope, TelescopeAxes
+
 
 
 T = Telescope('localhost:32323', 0) # Local Omni Simulator
@@ -51,9 +53,6 @@ class Sim(ShowBase):
 
         # Add the spinCameraTask procedure to the task manager.
 
-        self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
-
-        self.taskMgr.add(self.rocketPhysicsTask, "Physics")
 
         self.camera_dist = 600
 
@@ -70,7 +69,7 @@ class Sim(ShowBase):
         self.camLens.setFov(self.camera_fov)
         self.camera_res = (958, 1078)
         T.AbortSlew()
-        T.SlewToAltAzAsync(0,0)
+        T.SlewToAltAzAsync(0,0.5)
         while T.Slewing:
             sleep(0.1)
         # 10k feet = 3 km
@@ -78,9 +77,20 @@ class Sim(ShowBase):
         self.prev_err = 0
         self.setpoints = []
 
+        self.errors = []
+
+        self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
+
+        self.taskMgr.add(self.rocketPhysicsTask, "Physics")
+
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
         self.rocket_model.setPos(0,self.camera_dist,self.rocket.height)
+        if self.rocket.landed:
+            plt.plot(self.errors)
+            plt.show()
+            cv.waitKey(0)
+            exit(0)
         return Task.cont
 
     def getImage(self):
@@ -124,13 +134,16 @@ class Sim(ShowBase):
     def spinCameraTask(self, task):
 
         # angleDegrees = task.time * 6.0
-        setpoint = np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
-        curr = T.Altitude
+        x,y = self.getGroundTruthRocketPixelCoordinates()
+        setpoint = self.camera_res[1]//2#np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
+        curr = y
+
         err = setpoint - curr
+        self.errors.append(err)
         d = err - self.prev_err 
         self.prev_err = err
         self.total_err+=err
-        KP, KI, KD = 10,0,1
+        KP, KI, KD = 0.01,0,0
         # T.SlewToAltAzAsync(0,angleDegrees)
         control_input = KP*err + KI*self.total_err - KD * d
         clipped_input = np.clip(control_input,-6,6)
@@ -140,8 +153,6 @@ class Sim(ShowBase):
         img = self.getImage()
         if img is None:
             return Task.cont
-        x,y = self.getGroundTruthRocketPixelCoordinates()
-        print(x,y)
         cv.circle(img, [x,y], 10, (255,0,0), -1)
         cv.imwrite("latest.png", img) 
         return Task.cont

@@ -2,9 +2,10 @@ import numpy as np
 class Rocket:
     def __init__(self):
         self.height = 0
-        self.acceleration = 2*9.81
+        self.acceleration =1# 2*9.81
         self.launch_time = 1
         self.burn_duration = 10
+        self.landed = False
 
     def step(self, time):
         '''
@@ -22,3 +23,4 @@ class Rocket:
         
         if self.height<0:
             self.height=0
+            self.landed = True
