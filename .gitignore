@@ -4,5 +4,9 @@ lib
 lib64
 share
 pyvenv.cfg
+
 __pycache__
+
 ascom.alpaca.simulators*
+
+runs

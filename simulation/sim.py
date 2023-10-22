@@ -3,7 +3,7 @@ import os
 from time import sleep
 import cv2 as cv
 import matplotlib.pyplot as plt
-
+from torch.utils.tensorboard import SummaryWriter
 
 from direct.showbase.ShowBase import ShowBase
 
@@ -20,7 +20,9 @@ from rocket import Rocket
 
 from alpaca.telescope import Telescope, TelescopeAxes
 
-
+os.makedirs('runs', exist_ok=True)
+num_prev_runs = len(os.listdir('runs')) 
+tb_writer = SummaryWriter(f'runs/{num_prev_runs}')
 
 T = Telescope('localhost:32323', 0) # Local Omni Simulator
 
@@ -87,9 +89,8 @@ class Sim(ShowBase):
         self.rocket.step(task.time)
         self.rocket_model.setPos(0,self.camera_dist,self.rocket.height)
         if self.rocket.landed:
-            plt.plot(self.errors)
-            plt.show()
-            cv.waitKey(0)
+            print("Landed!")
+            sleep(0.5)
             exit(0)
         return Task.cont
 
@@ -139,14 +140,17 @@ class Sim(ShowBase):
         curr = y
 
         err = setpoint - curr
-        self.errors.append(err)
+        tb_writer.add_scalar("Pixel Tracking Error",err,task.frame)
         d = err - self.prev_err 
         self.prev_err = err
         self.total_err+=err
-        KP, KI, KD = 0.01,0,0
+        KP, KI, KD = 0.005,0.001,0.01
+
         # T.SlewToAltAzAsync(0,angleDegrees)
         control_input = KP*err + KI*self.total_err - KD * d
+        tb_writer.add_scalar("Control input (unconstrained)", control_input, task.frame)
         clipped_input = np.clip(control_input,-6,6)
+        tb_writer.add_scalar("Control input (clipped)", clipped_input, task.frame)
         # print(control_input, setpoint, curr, clipped_input)
         T.MoveAxis(TelescopeAxes.axisSecondary, -clipped_input)
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
