@@ -59,7 +59,7 @@ class Sim(ShowBase):
         # 10k feet = 3 km
 
         self.x_controller = PIDController(0.005,0.001,0.01)
-        self.y_controller = PIDController(0.005,0.001,0.01)
+        self.y_controller = PIDController(0.015,0,0.01)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
 
