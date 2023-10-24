@@ -3,6 +3,7 @@ import os
 from time import sleep
 import cv2 as cv
 import matplotlib.pyplot as plt
+from pid_controller import PIDController
 from torch.utils.tensorboard import SummaryWriter
 
 from direct.showbase.ShowBase import ShowBase
@@ -37,25 +38,6 @@ class Sim(ShowBase):
 
         self.disableMouse()
 
-
-        # Load the environment model.
-
-        # self.scene = self.loader.loadModel("models/environment")
-
-        # # Reparent the model to render.
-
-        # self.scene.reparentTo(self.render)
-
-        # # Apply scale and position transforms on the model.
-
-        # self.scene.setScale(0.25, 0.25, 0.25)
-
-        # self.scene.setPos(-8, 42, 0)
-
-
-        # Add the spinCameraTask procedure to the task manager.
-
-
         self.camera_dist = 600
 
         self.rocket_model = self.loader.loadModel("models/panda-model")
@@ -75,11 +57,9 @@ class Sim(ShowBase):
         while T.Slewing:
             sleep(0.1)
         # 10k feet = 3 km
-        self.total_err = 0
-        self.prev_err = 0
-        self.setpoints = []
 
-        self.errors = []
+        self.x_controller = PIDController(0.005,0.001,0.01)
+        self.y_controller = PIDController(0.005,0.001,0.01)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
 
@@ -87,11 +67,11 @@ class Sim(ShowBase):
 
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
-        self.rocket_model.setPos(0,self.camera_dist,self.rocket.height)
-        if self.rocket.landed:
-            print("Landed!")
-            sleep(0.5)
-            exit(0)
+        x,y,z = self.rocket.position
+        self.rocket_model.setPos(x,y+self.camera_dist,z)
+        tb_writer.add_scalar("Rocket X Position", x, task.frame)
+        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.frame)
+        tb_writer.add_scalar("Rocket Z Position", z, task.frame)
         return Task.cont
 
     def getImage(self):
@@ -119,7 +99,7 @@ class Sim(ShowBase):
             [0,  0,  1]
         ])
 
-        rocket_pos = np.array([0,self.camera_dist,self.rocket.height])
+        rocket_pos = np.array(self.rocket.position)+np.array([0,self.camera_dist,0])
 
         rocket_cam_pos = alt_rotation.T @ az_rotation.T @ rocket_pos
 
@@ -136,23 +116,25 @@ class Sim(ShowBase):
 
         # angleDegrees = task.time * 6.0
         x,y = self.getGroundTruthRocketPixelCoordinates()
-        setpoint = self.camera_res[1]//2#np.rad2deg(np.arctan(self.rocket.height/self.camera_dist))
-        curr = y
+        setpoint_x = self.camera_res[0]//2 
+        err_x = setpoint_x  - x
+        setpoint_y = self.camera_res[1]//2
+        err_y = setpoint_y - y
 
-        err = setpoint - curr
-        tb_writer.add_scalar("Pixel Tracking Error",err,task.frame)
-        d = err - self.prev_err 
-        self.prev_err = err
-        self.total_err+=err
-        KP, KI, KD = 0.005,0.001,0.01
+        tb_writer.add_scalar("Pixel Tracking Error (X)",err_x,task.frame)
+        tb_writer.add_scalar("Pixel Tracking Error (Y)",err_y,task.frame)
 
         # T.SlewToAltAzAsync(0,angleDegrees)
-        control_input = KP*err + KI*self.total_err - KD * d
-        tb_writer.add_scalar("Control input (unconstrained)", control_input, task.frame)
-        clipped_input = np.clip(control_input,-6,6)
-        tb_writer.add_scalar("Control input (clipped)", clipped_input, task.frame)
+        input_x = self.x_controller.step(err_x)
+        input_y = self.y_controller.step(err_y)
+        x_clipped = np.clip(input_x,-6,6)
+        y_clipped = np.clip(input_y,-6,6)
+        tb_writer.add_scalar("X Input", x_clipped, task.frame)
+        tb_writer.add_scalar("Y Input", y_clipped, task.frame)
         # print(control_input, setpoint, curr, clipped_input)
-        T.MoveAxis(TelescopeAxes.axisSecondary, -clipped_input)
+        T.MoveAxis(TelescopeAxes.axisSecondary, -y_clipped)
+        # T.MoveAxis(TelescopeAxes.axisPrimary, -x_clipped)
+
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         img = self.getImage()
         if img is None:
