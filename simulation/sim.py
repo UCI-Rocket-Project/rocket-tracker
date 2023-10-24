@@ -46,19 +46,19 @@ class Sim(ShowBase):
         self.rocket_model.setPos(0,self.camera_dist,0)
         self.rocket_model.reparentTo(self.render)
 
-        self.rocket = Rocket()
+        self.rocket = Rocket(np.array([0,self.camera_dist,0]))
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         # self.camLens.setFov(0.9)
         self.camera_fov = 0.9
         self.camLens.setFov(self.camera_fov)
         self.camera_res = (958, 1078)
         T.AbortSlew()
-        T.SlewToAltAzAsync(0,0.5)
+        T.SlewToAltAzAsync(0,0)
         while T.Slewing:
             sleep(0.1)
         # 10k feet = 3 km
 
-        self.x_controller = PIDController(0.005,0.001,0.01)
+        self.x_controller = PIDController(0.015,0,0.01)
         self.y_controller = PIDController(0.015,0,0.01)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
@@ -68,7 +68,7 @@ class Sim(ShowBase):
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
         x,y,z = self.rocket.position
-        self.rocket_model.setPos(x,y+self.camera_dist,z)
+        self.rocket_model.setPos(x,y,z)
         tb_writer.add_scalar("Rocket X Position", x, task.frame)
         tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.frame)
         tb_writer.add_scalar("Rocket Z Position", z, task.frame)
@@ -99,7 +99,7 @@ class Sim(ShowBase):
             [0,  0,  1]
         ])
 
-        rocket_pos = np.array(self.rocket.position)+np.array([0,self.camera_dist,0])
+        rocket_pos = self.rocket.position
 
         rocket_cam_pos = alt_rotation.T @ az_rotation.T @ rocket_pos
 
@@ -133,7 +133,7 @@ class Sim(ShowBase):
         tb_writer.add_scalar("Y Input", y_clipped, task.frame)
         # print(control_input, setpoint, curr, clipped_input)
         T.MoveAxis(TelescopeAxes.axisSecondary, -y_clipped)
-        # T.MoveAxis(TelescopeAxes.axisPrimary, -x_clipped)
+        # T.MoveAxis(TelescopeAxes.axisPrimary, x_clipped)
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         img = self.getImage()
