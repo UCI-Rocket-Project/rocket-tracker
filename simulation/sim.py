@@ -2,29 +2,20 @@ import numpy as np
 import os
 from time import sleep
 import cv2 as cv
-import matplotlib.pyplot as plt
-from pid_controller import PIDController
 from torch.utils.tensorboard import SummaryWriter
+from alpaca.telescope import Telescope
 
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
 
-from direct.actor.Actor import Actor
-
-from direct.interval.IntervalGlobal import Sequence
-
-from panda3d.core import Point3 
-from panda3d.physics import ActorNode
-
 from rocket import Rocket
+from tracker import Tracker
 
-from alpaca.telescope import Telescope, TelescopeAxes
 
 os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
 tb_writer = SummaryWriter(f'runs/{num_prev_runs}')
-
 T = Telescope('localhost:32323', 0) # Local Omni Simulator
 
 class Sim(ShowBase):
@@ -56,13 +47,9 @@ class Sim(ShowBase):
         T.SlewToAltAzAsync(0,0)
         while T.Slewing:
             sleep(0.1)
-        # 10k feet = 3 km
-
-        self.x_controller = PIDController(0.015,0,0.01)
-        self.y_controller = PIDController(0.015,0,0.01)
+        self.tracker = Tracker(self.camera_res, tb_writer, T)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
-
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
 
     def rocketPhysicsTask(self, task):
@@ -116,26 +103,12 @@ class Sim(ShowBase):
 
         # angleDegrees = task.time * 6.0
         x,y = self.getGroundTruthRocketPixelCoordinates()
-        setpoint_x = self.camera_res[0]//2 
-        err_x = setpoint_x  - x
-        setpoint_y = self.camera_res[1]//2
-        err_y = setpoint_y - y
-
-        tb_writer.add_scalar("Pixel Tracking Error (X)",err_x,task.frame)
-        tb_writer.add_scalar("Pixel Tracking Error (Y)",err_y,task.frame)
-
-        # T.SlewToAltAzAsync(0,angleDegrees)
-        input_x = self.x_controller.step(err_x)
-        input_y = self.y_controller.step(err_y)
-        x_clipped = np.clip(input_x,-6,6)
-        y_clipped = np.clip(input_y,-6,6)
-        tb_writer.add_scalar("X Input", x_clipped, task.frame)
-        tb_writer.add_scalar("Y Input", y_clipped, task.frame)
-        # print(control_input, setpoint, curr, clipped_input)
-        T.MoveAxis(TelescopeAxes.axisSecondary, -y_clipped)
-        # T.MoveAxis(TelescopeAxes.axisPrimary, x_clipped)
-
+        self.tracker.update_tracking(x,y,task.frame)
+        
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
+        tb_writer.add_scalar("Azimuth", T.Azimuth, task.frame)
+        tb_writer.add_scalar("Altitude", T.Altitude, task.frame)
+
         img = self.getImage()
         if img is None:
             return Task.cont
