@@ -3,6 +3,7 @@ from pid_controller import PIDController
 from alpaca.telescope import Telescope, TelescopeAxes
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from filterpy.kalman import KalmanFilter
 
 class Tracker:
     def __init__(self, camera_res: tuple[int], logger: SummaryWriter, telescope: Telescope):
@@ -10,6 +11,7 @@ class Tracker:
         self.logger = logger
         self.x_controller = PIDController(0.015,0,0.01)
         self.y_controller = PIDController(0.015,0,0.01)
+        # self.filter = KalmanFilter()
         self.telescope = telescope
 
     def update_tracking(self, pixel_x: int, pixel_y: int, global_step: int) -> None:
