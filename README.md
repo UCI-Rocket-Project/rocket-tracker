@@ -7,10 +7,4 @@ The hardware simulator is here: https://github.com/ASCOMInitiative/ASCOM.Alpaca.
 Panda3D install: https://docs.panda3d.org/1.10/python/introduction/
 
 ## Installing camera software:
-1. Download ASIStudio (https://www.zwoastro.com/downloads/linux)
-2. make the `.run` file executable, and run it
-3. (optional) run ASIImg to get a preview. Some settings I found that work decently are:
-     - 1920x1080 resolution
-     - 0.02 exposure
-     - L(0) gain
-     - Bin1
+https://pypi.org/project/camera-zwo-asi/
