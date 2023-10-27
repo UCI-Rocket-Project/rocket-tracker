@@ -4,6 +4,8 @@ Repo for the code for the rocket tracker, including drivers for the tripod mount
 
 The hardware simulator is here: https://github.com/ASCOMInitiative/ASCOM.Alpaca.Simulators/releases
 
+Panda3D install: https://docs.panda3d.org/1.10/python/introduction/
+
 ## Installing camera software:
 1. Download ASIStudio (https://www.zwoastro.com/downloads/linux)
 2. make the `.run` file executable, and run it
