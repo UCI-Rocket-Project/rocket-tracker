@@ -23,12 +23,17 @@ class Rocket:
         self.z_coeff_2 = np.polyfit(post_cutoff[:,0], post_cutoff[:,3],1)
         self.index = 0
         self.position = initial_position 
+
+        self.pad_time = 1
     
 
     def step(self, time):
         ''')
             `time` should be a float, in seconds, since the start of the sim
         '''
+        if time < self.pad_time:
+            return
+        time -= self.pad_time
         if time<self.engine_cutoff_time:
             self.position = self.initial_position + np.array([
                 0,#eval_quadratic(self.x_coeff_1, time),

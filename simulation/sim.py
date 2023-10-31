@@ -56,9 +56,9 @@ class Sim(ShowBase):
         self.rocket.step(task.time)
         x,y,z = self.rocket.position
         self.rocket_model.setPos(x,y,z)
-        tb_writer.add_scalar("Rocket X Position", x, task.frame)
-        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.frame)
-        tb_writer.add_scalar("Rocket Z Position", z, task.frame)
+        tb_writer.add_scalar("Rocket X Position", x, task.time)
+        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.time)
+        tb_writer.add_scalar("Rocket Z Position", z, task.time)
         return Task.cont
 
     def getImage(self):
@@ -102,16 +102,23 @@ class Sim(ShowBase):
     def spinCameraTask(self, task):
 
         # angleDegrees = task.time * 6.0
-        x,y = self.getGroundTruthRocketPixelCoordinates()
-        self.tracker.update_tracking(x,y,task.frame)
-        
-        self.camera.setHpr(T.Azimuth,T.Altitude,0)
-        tb_writer.add_scalar("Azimuth", T.Azimuth, task.frame)
-        tb_writer.add_scalar("Altitude", T.Altitude, task.frame)
-
         img = self.getImage()
         if img is None:
             return Task.cont
+        x,y = self.getGroundTruthRocketPixelCoordinates()
+        
+        pos = self.tracker.update_image_tracking(img)
+        if pos is not None:
+            tb_writer.add_scalar("X Estimation Error", pos[0]-x, task.time)
+            tb_writer.add_scalar("Y Estimation Error", pos[1]-y, task.time)
+        # if pos is None:
+        #     return Task.cont
+        self.tracker.update_tracking(x,y,task.time)
+
+        self.camera.setHpr(T.Azimuth,T.Altitude,0)
+        tb_writer.add_scalar("Azimuth", T.Azimuth, task.time)
+        tb_writer.add_scalar("Altitude", T.Altitude, task.time)
+
         cv.circle(img, [x,y], 10, (255,0,0), -1)
         cv.imwrite("latest.png", img) 
         return Task.cont
