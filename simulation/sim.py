@@ -111,9 +111,9 @@ class Sim(ShowBase):
         if pos is not None:
             tb_writer.add_scalar("X Estimation Error", pos[0]-x, task.time)
             tb_writer.add_scalar("Y Estimation Error", pos[1]-y, task.time)
-        # if pos is None:
-        #     return Task.cont
-        self.tracker.update_tracking(x,y,task.time)
+        if pos is None:
+            return Task.cont
+        self.tracker.update_tracking(pos[0],pos[1],task.time)
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         tb_writer.add_scalar("Azimuth", T.Azimuth, task.time)

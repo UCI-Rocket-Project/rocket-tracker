@@ -14,16 +14,15 @@ class Tracker:
         self.y_controller = PIDController(0.015,0,0.01)
         # self.filter = KalmanFilter()
         self.telescope = telescope
-        self.tracker = cv.TrackerNano()
-        self.prev_img = np.zeros(self.camera_res)
-        self.feature_detector = cv.ORB_create()
+        self.feature_detector = cv.SIFT_create()
         self.target_feature: np.ndarray = None # feature description 
-        self.SCALE_FACTOR = 2
+        self.SCALE_FACTOR = 4
 
     def update_image_tracking(self, img: np.ndarray) -> tuple[int,int]:
         gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         gray = cv.resize(gray, np.array(img.shape)[:2]//self.SCALE_FACTOR) # resize to make computation faster
-        keypoints, descriptions = self.feature_detector.detectAndCompute(img,None)
+        keypoints, descriptions = self.feature_detector.detectAndCompute(gray,None)
+        points = np.array([kp.pt for kp in keypoints])
 
         if len(keypoints) == 0:
             return
@@ -31,9 +30,7 @@ class Tracker:
         center = np.array(gray.shape)//2
         if self.target_feature is None:
             closest_dist = np.linalg.norm(center*2)
-            for keypoint, description in zip(keypoints,descriptions):
-                p = np.array(keypoint.pt)
-                dist = np.linalg.norm(center-p)
+            for dist, description in zip(np.linalg.norm(points-center,axis=1),descriptions):
                 if dist<closest_dist:
                     self.target_feature = description
                     closest_dist = dist
