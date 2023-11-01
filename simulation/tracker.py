@@ -1,9 +1,8 @@
 from pid_controller import PIDController
 
-from alpaca.telescope import Telescope, TelescopeAxes
+from telescope import Telescope
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from filterpy.kalman import KalmanFilter
 import cv2 as cv
 
 class Tracker:
@@ -44,10 +43,10 @@ class Tracker:
                 max_similarity = similarity
                 new_pos = np.array(keypoint.pt).astype(int)
 
-        vis = cv.drawKeypoints(gray,keypoints,None,flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        box_size = np.array([20,20])
-        cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
-        cv.imwrite("features.png",vis)
+        # vis = cv.drawKeypoints(gray,keypoints,None,flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # box_size = np.array([20,20])
+        # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
+        # cv.imwrite("features.png",vis)
         return new_pos*self.SCALE_FACTOR
 
 
@@ -66,5 +65,5 @@ class Tracker:
         y_clipped = np.clip(input_y,-6,6)
         self.logger.add_scalar("X Input", x_clipped, global_step)
         self.logger.add_scalar("Y Input", y_clipped, global_step)
-        self.telescope.MoveAxis(TelescopeAxes.axisSecondary, -y_clipped)
-        # self.telescope.MoveAxis(TelescopeAxes.axisPrimary, x_clipped)
+        self.telescope.slewAltitudeRate(y_clipped, global_step/100)
+        self.telescope.slewAzimuthRate(x_clipped, global_step/100)

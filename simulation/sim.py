@@ -3,7 +3,7 @@ import os
 from time import sleep
 import cv2 as cv
 from torch.utils.tensorboard import SummaryWriter
-from alpaca.telescope import Telescope
+from telescope import Telescope
 
 from direct.showbase.ShowBase import ShowBase
 
@@ -16,13 +16,14 @@ from tracker import Tracker
 os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
 tb_writer = SummaryWriter(f'runs/{num_prev_runs}')
-T = Telescope('localhost:32323', 0) # Local Omni Simulator
+T = Telescope()
 
 class Sim(ShowBase):
 
     def __init__(self):
 
         ShowBase.__init__(self)
+        self.setFrameRateMeter(True)
 
 
         # Disable the camera trackball controls.
@@ -43,22 +44,31 @@ class Sim(ShowBase):
         self.camera_fov = 0.9
         self.camLens.setFov(self.camera_fov)
         self.camera_res = (958, 1078)
-        T.AbortSlew()
-        T.SlewToAltAzAsync(0,0)
-        while T.Slewing:
-            sleep(0.1)
         self.tracker = Tracker(self.camera_res, tb_writer, T)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
+        self.prev_rocket_position = None
+        self.prev_rocket_observation_time = None 
 
     def rocketPhysicsTask(self, task):
         self.rocket.step(task.time)
         x,y,z = self.rocket.position
         self.rocket_model.setPos(x,y,z)
-        tb_writer.add_scalar("Rocket X Position", x, task.time)
-        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.time)
-        tb_writer.add_scalar("Rocket Z Position", z, task.time)
+        tb_writer.add_scalar("Rocket X Position", x, task.time*100)
+        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.time*100)
+        tb_writer.add_scalar("Rocket Z Position", z, task.time*100)
+        if self.prev_rocket_observation_time is not None:
+            az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
+            az_new, alt_new = self.getGroundTruthAzAlt(self.rocket.position)
+            tb_writer.add_scalar("Rocket Azimuth", az_new, task.time*100)
+            tb_writer.add_scalar("Rocket Altitude", alt_new, task.time*100)
+            az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
+            alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
+            tb_writer.add_scalar("Rocket Azimuth Derivative", az_derivative, task.time*100)
+            tb_writer.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
+        self.prev_rocket_position = self.rocket.position
+        self.prev_rocket_observation_time = task.time
         return Task.cont
 
     def getImage(self):
@@ -99,28 +109,33 @@ class Sim(ShowBase):
 
         return int(pixel_x), int(pixel_y)
 
-    def spinCameraTask(self, task):
+    def getGroundTruthAzAlt(self, rocket_pos):
+        az = np.arctan2(rocket_pos[0], rocket_pos[1])
+        alt = np.arctan2(rocket_pos[2], np.sqrt(rocket_pos[0]**2 + rocket_pos[1]**2))
+        return np.rad2deg(az), np.rad2deg(alt)
 
+    def spinCameraTask(self, task):
         # angleDegrees = task.time * 6.0
         img = self.getImage()
         if img is None:
             return Task.cont
+
         x,y = self.getGroundTruthRocketPixelCoordinates()
         
         pos = self.tracker.update_image_tracking(img)
         if pos is not None:
-            tb_writer.add_scalar("X Estimation Error", pos[0]-x, task.time)
-            tb_writer.add_scalar("Y Estimation Error", pos[1]-y, task.time)
+            tb_writer.add_scalar("X Estimation Error", pos[0]-x, task.time*100)
+            tb_writer.add_scalar("Y Estimation Error", pos[1]-y, task.time*100)
         if pos is None:
             return Task.cont
-        self.tracker.update_tracking(pos[0],pos[1],task.time)
+        self.tracker.update_tracking(pos[0],pos[1],task.time*100)
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
-        tb_writer.add_scalar("Azimuth", T.Azimuth, task.time)
-        tb_writer.add_scalar("Altitude", T.Altitude, task.time)
+        tb_writer.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)
+        tb_writer.add_scalar("Telescope Altitude", T.Altitude, task.time*100)
 
-        cv.circle(img, [x,y], 10, (255,0,0), -1)
-        cv.imwrite("latest.png", img) 
+        # cv.circle(img, [x,y], 10, (255,0,0), -1)
+        # cv.imwrite("latest.png", img) 
         return Task.cont
 
 
