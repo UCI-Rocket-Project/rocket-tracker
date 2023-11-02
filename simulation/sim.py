@@ -122,7 +122,7 @@ class Sim(ShowBase):
 
         x,y = self.getGroundTruthRocketPixelCoordinates()
         
-        self.tracker.update_tracking(img,task.time*100, (x,y))
+        self.tracker.update_tracking(img,task.time*100, (x,y), self.rocket.position)
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         tb_writer.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)
