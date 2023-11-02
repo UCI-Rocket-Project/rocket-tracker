@@ -1,6 +1,5 @@
 import numpy as np
 import os
-from time import sleep
 import cv2 as cv
 from torch.utils.tensorboard import SummaryWriter
 from telescope import Telescope
@@ -42,9 +41,10 @@ class Sim(ShowBase):
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         # self.camLens.setFov(0.9)
         self.camera_fov = 0.9
-        self.camLens.setFov(self.camera_fov)
         self.camera_res = (958, 1078)
-        self.tracker = Tracker(self.camera_res, tb_writer, T)
+        self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        self.camLens.setFov(self.camera_fov)
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -122,13 +122,7 @@ class Sim(ShowBase):
 
         x,y = self.getGroundTruthRocketPixelCoordinates()
         
-        pos = self.tracker.update_image_tracking(img)
-        if pos is not None:
-            tb_writer.add_scalar("X Estimation Error", pos[0]-x, task.time*100)
-            tb_writer.add_scalar("Y Estimation Error", pos[1]-y, task.time*100)
-        if pos is None:
-            return Task.cont
-        self.tracker.update_tracking(pos[0],pos[1],task.time*100)
+        self.tracker.update_tracking(img,task.time*100, (x,y))
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         tb_writer.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)

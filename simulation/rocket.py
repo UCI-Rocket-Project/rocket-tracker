@@ -43,6 +43,7 @@ class Rocket:
         ''')
             `time` should be a float, in seconds, since the start of the sim
         '''
+        # self.position = self.initial_position+ np.array([0,0,2])
         if self.sim_start_time is None:
             self.sim_start_time = time
         time -= self.sim_start_time

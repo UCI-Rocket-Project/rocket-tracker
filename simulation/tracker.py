@@ -6,18 +6,25 @@ import numpy as np
 import cv2 as cv
 
 class Tracker:
-    def __init__(self, camera_res: tuple[int,int], logger: SummaryWriter, telescope: Telescope):
+    def __init__(self, camera_res: tuple[int,int], focal_len: int, logger: SummaryWriter, telescope: Telescope):
+        '''
+        `camera_res`: camera resolution (w,h) in pixels
+        `focal_len`: focal length in pixels
+        '''
         self.camera_res = camera_res
+        self.focal_len = focal_len
         self.logger = logger
-        self.x_controller = PIDController(0.015,0,0.01)
-        self.y_controller = PIDController(0.015,0,0.01)
+        self.x_controller = PIDController(10,0,1)
+        self.y_controller = PIDController(10,0,1)
         # self.filter = KalmanFilter()
         self.telescope = telescope
         self.feature_detector = cv.SIFT_create()
         self.target_feature: np.ndarray = None # feature description 
         self.SCALE_FACTOR = 4
+        self.rocket_az_estimate = 0
+        self.rocket_alt_estimate = 0
 
-    def update_image_tracking(self, img: np.ndarray) -> tuple[int,int]:
+    def update_tracking(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[int,int]:
         gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         gray = cv.resize(gray, np.array(img.shape)[:2]//self.SCALE_FACTOR) # resize to make computation faster
         keypoints, descriptions = self.feature_detector.detectAndCompute(gray,None)
@@ -43,24 +50,34 @@ class Tracker:
                 max_similarity = similarity
                 new_pos = np.array(keypoint.pt).astype(int)
 
+        # uncomment this line to use ground truth pixel position instead of the one provided by the pixel tracking algorithm
+        # new_pos = np.array(gt_pos)/self.SCALE_FACTOR
+
+        self.logger.add_scalar("Pixel Estimate Error (X)",new_pos[0]*self.SCALE_FACTOR-gt_pos[0],global_step)
+        self.logger.add_scalar("Pixel Estimate Error (Y)",new_pos[1]*self.SCALE_FACTOR-gt_pos[1],global_step)
+
+        self.rocket_alt_estimate = self.telescope.Altitude+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
+        self.rocket_az_estimate = self.telescope.Azimuth+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))
+
+        self.logger.add_scalar("Altitude Estimate (Degrees)",self.rocket_alt_estimate,global_step)
+        self.logger.add_scalar("Azimuth Estimate (Degrees)",self.rocket_az_estimate,global_step)
+
         # vis = cv.drawKeypoints(gray,keypoints,None,flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         # box_size = np.array([20,20])
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
         # cv.imwrite("features.png",vis)
-        return new_pos*self.SCALE_FACTOR
 
+        alt_setpoint = self.rocket_alt_estimate
+        az_setpoint = self.rocket_az_estimate
 
-    def update_tracking(self, pixel_x: int, pixel_y: int, global_step: int) -> None:
-        setpoint_x = self.camera_res[0]//2 
-        err_x = setpoint_x  - pixel_x
-        setpoint_y = self.camera_res[1]//2
-        err_y = setpoint_y - pixel_y
+        alt_err = alt_setpoint-self.telescope.Altitude
+        az_err = az_setpoint-self.telescope.Azimuth
 
-        self.logger.add_scalar("Pixel Tracking Error (X)",err_x,global_step)
-        self.logger.add_scalar("Pixel Tracking Error (Y)",err_y,global_step)
+        self.logger.add_scalar("Altitude Tracking Error (Degrees)",alt_err,global_step)
+        self.logger.add_scalar("Azimuth Tracking Error (Degrees)",az_err,global_step)
 
-        input_x = self.x_controller.step(err_x)
-        input_y = self.y_controller.step(err_y)
+        input_x = self.x_controller.step(az_err)
+        input_y = self.y_controller.step(alt_err)
         x_clipped = np.clip(input_x,-6,6)
         y_clipped = np.clip(input_y,-6,6)
         self.logger.add_scalar("X Input", x_clipped, global_step)
