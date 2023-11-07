@@ -1,7 +1,7 @@
 class Telescope:
-    def __init__(self):
-        self.Azimuth = 0
-        self.Altitude = 0
+    def __init__(self, azimuth=0, altitude=0):
+        self.Azimuth = azimuth 
+        self.Altitude = altitude 
         self._azimuth_rate = 0
         self._altitude_rate = 0
         self._last_updated_time = 0

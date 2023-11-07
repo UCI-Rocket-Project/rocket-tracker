@@ -15,7 +15,7 @@ from tracker import Tracker
 os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
 tb_writer = SummaryWriter(f'runs/{num_prev_runs}')
-T = Telescope()
+T = Telescope(azimuth=0, altitude=0)
 
 class Sim(ShowBase):
 
