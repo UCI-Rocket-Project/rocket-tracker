@@ -85,7 +85,7 @@ class Tracker:
         altitude_from_image_processing, azimuth_from_image_processing = self.estimate_az_alt_from_img(img, global_step, gt_pos) or (None,None)
 
         altitude_from_pos_estimate = np.rad2deg(np.arctan2(pos_estimate[2], np.sqrt(pos_estimate[0]**2 + pos_estimate[1]**2)))
-        azimuth_from_pos_estimate = np.rad2deg(np.arctan2(pos_estimate[0], pos_estimate[1]))
+        azimuth_from_pos_estimate = -np.rad2deg(np.arctan2(pos_estimate[0], pos_estimate[1]))
 
         if altitude_from_image_processing is not None:
             alt_setpoint = altitude_from_image_processing
