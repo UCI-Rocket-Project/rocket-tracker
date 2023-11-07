@@ -36,7 +36,11 @@ class Tracker:
         points = np.array([kp.pt for kp in keypoints])
 
         if len(keypoints) == 0:
-            return None
+            return None, None
+        else:
+            # show image with keypoints
+            vis = cv.drawKeypoints(gray,keypoints,None,flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            cv.imwrite("features.png",vis)
 
         center = np.array(gray.shape)//2
         if self.target_feature is None:
@@ -58,7 +62,7 @@ class Tracker:
                 new_feature = descriptions[i]
 
         if new_pos is None:
-            return None
+            return None, None
 
         altitude_from_image_processing = self.telescope.Altitude+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
         azimuth_from_image_processing = self.telescope.Azimuth+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))
@@ -86,8 +90,11 @@ class Tracker:
 
         altitude_from_pos_estimate = np.rad2deg(np.arctan2(pos_estimate[2], np.sqrt(pos_estimate[0]**2 + pos_estimate[1]**2)))
         azimuth_from_pos_estimate = -np.rad2deg(np.arctan2(pos_estimate[0], pos_estimate[1]))
+        using_image_processing = altitude_from_image_processing is not None
 
-        if altitude_from_image_processing is not None:
+        self.logger.add_scalar("Using image processing", int(using_image_processing), global_step)
+
+        if using_image_processing:
             alt_setpoint = altitude_from_image_processing
             az_setpoint = azimuth_from_image_processing
         else:

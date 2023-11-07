@@ -80,6 +80,10 @@ class Sim(ShowBase):
                 img = cv.imread(f)
                 os.remove(f)
                 break
+        if img is None:
+            return
+        # blocks out the FPS counter by copying the part of the background in the bottom right to the top right.
+        img[:50, -150:, :] = img[-50:,-150:,:]
         return img
     
     def getGroundTruthRocketPixelCoordinates(self):
