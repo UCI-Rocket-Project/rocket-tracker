@@ -44,7 +44,7 @@ class Sim(ShowBase):
         self.camera_res = (958, 1078)
         self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.camLens.setFov(self.camera_fov)
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T)
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.position)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
