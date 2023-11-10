@@ -31,7 +31,7 @@ def measurement_function(state: np.ndarray):
     x,y,z = state[0],state[3],state[6]
     alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
     az = -np.rad2deg(np.arctan2(x, y))
-    return np.array([alt,az])
+    return np.array([alt,az,z])
 
 
 class Tracker:
@@ -48,7 +48,7 @@ class Tracker:
 
         self.filter = UnscentedKalmanFilter(
             dim_x = 9, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 2, # observation dimension (altitude, azimuth),
+            dim_z = 3, # observation dimension (altitude, azimuth, altimeter reading),
             dt = 1/30,
             hx = measurement_function,
             fx = rocket_state_transition,
@@ -131,7 +131,7 @@ class Tracker:
 
         gt_state = np.zeros(9)
         gt_state[0],gt_state[3],gt_state[6] = gt_3d
-        altitude_from_pos_estimate, azimuth_from_pos_estimate = measurement_function(gt_state)
+        altitude_from_pos_estimate, azimuth_from_pos_estimate,_ = measurement_function(gt_state)
         using_image_processing = altitude_from_image_processing is not None
 
         self.logger.add_scalar("Using image processing", int(using_image_processing), global_step)
@@ -145,7 +145,7 @@ class Tracker:
 
         self.filter.predict(global_step-self.previous_filter_update_time)
         self.previous_filter_update_time = global_step
-        self.filter.update(np.array([alt_setpoint,az_setpoint]))
+        self.filter.update(np.array([alt_setpoint,az_setpoint, gt_3d[2]]))
 
         self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
         self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
