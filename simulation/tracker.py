@@ -5,63 +5,74 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints
-
-def rocket_state_transition(state: np.ndarray, dt):
-    '''
-    x is x,dx,d2x,y,dy,d2y,z,dz,d2z
-    '''
-
-    x,y,z = state[0],state[3],state[6]
-    dx,dy,dz = state[1],state[4],state[7]
-    d2x,d2y,d2z = state[2],state[5],state[8]
-
-    return np.array([
-        x+dx*dt+0.5*d2x*dt**2,
-        dx+d2x*dt,
-        d2x,
-        y+dy*dt+0.5*d2y*dt**2,
-        dy+d2y*dt,
-        d2y,
-        z+dz*dt+0.5*d2z*dt**2,
-        dz+d2z*dt,
-        d2z
-    ])
-
-def measurement_function(state: np.ndarray):
-    x,y,z = state[0],state[3],state[6]
-    alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
-    az = -np.rad2deg(np.arctan2(x, y))
-    return np.array([alt,az,z])
-
+from utils import GroundTruthTrackingData, TelemetryData, gps_to_enu, enu_to_gps
 
 class Tracker:
-    def __init__(self, camera_res: tuple[int,int], focal_len: int, logger: SummaryWriter, telescope: Telescope, initial_position: np.ndarray):
+    def __init__(self, 
+                camera_res: tuple[int,int], 
+                focal_len: int, 
+                logger: SummaryWriter, 
+                telescope: Telescope, 
+                rocket_initial_position: tuple[float,float],
+                mount_initial_position: np.ndarray):
         '''
         `camera_res`: camera resolution (w,h) in pixels
         `focal_len`: focal length in pixels
+        `logger`: tensorboard logger
+        `telescope`: telescope object for controlling the telescope with ASCOM Alpaca
+        `rocket_initial_position`: initial position of the rocket in GPS coordinates (lat,lng)
+        `mount_initial_position`: initial position of the mount in GPS coordinates (lat,lng)
         '''
         self.camera_res = camera_res
         self.focal_len = focal_len
         self.logger = logger
         self.x_controller = PIDController(10,0,1)
         self.y_controller = PIDController(10,0,1)
+        self.gps_pos = mount_initial_position # initial position of mount in GPS coordinates (lat,lng,alt)
 
         self.filter = UnscentedKalmanFilter(
             dim_x = 9, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 3, # observation dimension (altitude, azimuth, altimeter reading),
+            dim_z = 5, # observation dimension (altitude, azimuth, lat,lng, altimeter reading),
             dt = 1/30,
-            hx = measurement_function,
-            fx = rocket_state_transition,
+            hx = self._measurement_function,
+            fx = self._rocket_state_transition,
             points = JulierSigmaPoints(9)
         )
-        self.filter.x  = np.array([*initial_position,*[0]*6]) # initial state
-        self.previous_filter_update_time = 0
+        self.filter.x  = np.array([*rocket_initial_position,*[0]*6]) # initial state
+        self.previous_filter_predict_time = 0
 
         self.telescope = telescope
         self.feature_detector = cv.SIFT_create()
         self.target_feature: np.ndarray = None # feature description 
         self.SCALE_FACTOR = 4
 
+    def _rocket_state_transition(self, state: np.ndarray, dt):
+        '''
+        x is x,dx,d2x,y,dy,d2y,z,dz,d2z
+        '''
+
+        x,y,z = state[0],state[3],state[6]
+        dx,dy,dz = state[1],state[4],state[7]
+        d2x,d2y,d2z = state[2],state[5],state[8]
+
+        return np.array([
+            x+dx*dt+0.5*d2x*dt**2,
+            dx+d2x*dt,
+            d2x,
+            y+dy*dt+0.5*d2y*dt**2,
+            dy+d2y*dt,
+            d2y,
+            z+dz*dt+0.5*d2z*dt**2,
+            dz+d2z*dt,
+            d2z
+        ])
+
+    def _measurement_function(self, state: np.ndarray):
+        x,y,z = state[0],state[3],state[6]
+        alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
+        az = -np.rad2deg(np.arctan2(x, y))
+        lat,lng, height = enu_to_gps(np.array([x,y,z]), self.gps_pos)
+        return np.array([alt,az,lat,lng,height])
 
     def estimate_az_alt_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float]:
         '''
@@ -118,7 +129,7 @@ class Tracker:
         return altitude_from_image_processing, azimuth_from_image_processing
 
 
-    def update_tracking(self, img: np.ndarray, global_step: int, gt_pixels: tuple[float,float], gt_3d: np.ndarray) -> tuple[int,int]:
+    def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, global_step: int, ground_truth: GroundTruthTrackingData) -> tuple[int,int]:
         '''
         `img`: image from camera
         `global_step`: current time step (for logging)
@@ -127,25 +138,23 @@ class Tracker:
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
 
-        altitude_from_image_processing, azimuth_from_image_processing = self.estimate_az_alt_from_img(img, global_step, gt_pixels) or (None,None)
+        altitude_from_image_processing, azimuth_from_image_processing = self.estimate_az_alt_from_img(img, global_step, ground_truth.pixel_coordinates) or (None,None)
 
-        gt_state = np.zeros(9)
-        gt_state[0],gt_state[3],gt_state[6] = gt_3d
-        altitude_from_pos_estimate, azimuth_from_pos_estimate,_ = measurement_function(gt_state)
         using_image_processing = altitude_from_image_processing is not None
 
         self.logger.add_scalar("Using image processing", int(using_image_processing), global_step)
 
-        if using_image_processing:
-            alt_setpoint = altitude_from_image_processing
-            az_setpoint = azimuth_from_image_processing
-        else:
-            alt_setpoint = altitude_from_pos_estimate
-            az_setpoint = azimuth_from_pos_estimate
 
-        self.filter.predict(global_step-self.previous_filter_update_time)
-        self.previous_filter_update_time = global_step
-        self.filter.update(np.array([alt_setpoint,az_setpoint, gt_3d[2]]))
+        self.filter.predict(global_step-self.previous_filter_predict_time)
+        self.previous_filter_predict_time = global_step
+
+        # TODO: set measurement noise really high for any missing measurements
+        if using_image_processing:
+            self.filter.update(np.array([altitude_from_image_processing,
+                                        azimuth_from_image_processing, 
+                                        telem_measurements.gps_lat,
+                                        telem_measurements.gps_lng,
+                                        telem_measurements.altimeter_reading]))
 
         self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
         self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
@@ -156,6 +165,8 @@ class Tracker:
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
         # cv.imwrite("features.png",vis)
         
+        alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
+
         alt_err = alt_setpoint-self.telescope.Altitude
         az_err = az_setpoint-self.telescope.Azimuth
 

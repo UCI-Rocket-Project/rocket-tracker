@@ -10,6 +10,7 @@ from direct.task import Task
 
 from rocket import Rocket
 from tracker import Tracker
+from utils import GroundTruthTrackingData, TelemetryData, gps_to_enu, enu_to_gps
 
 
 os.makedirs('runs', exist_ok=True)
@@ -37,14 +38,18 @@ class Sim(ShowBase):
         self.rocket_model.setPos(0,self.camera_dist,0)
         self.rocket_model.reparentTo(self.render)
 
-        self.rocket = Rocket(np.array([0,self.camera_dist,0]))
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         # self.camLens.setFov(0.9)
         self.camera_fov = 0.9
         self.camera_res = (958, 1078)
         self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.camLens.setFov(self.camera_fov)
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.position)
+
+        self.rocket = Rocket(np.array([0,self.camera_dist,0]))
+        # get tracker position in gps coordinates based on rocket telemetry
+        telem: TelemetryData = self.rocket.get_telemetry(0)
+        tracker_pos_gps = enu_to_gps(np.array([0,self.camera_dist,0]), np.array([telem.gps_lat, telem.gps_lng, telem.altimeter_reading]))
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.position, tracker_pos_gps)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -52,22 +57,22 @@ class Sim(ShowBase):
         self.prev_rocket_observation_time = None 
 
     def rocketPhysicsTask(self, task):
-        self.rocket.step(task.time)
-        x,y,z = self.rocket.position
+        rocket_pos = self.rocket.get_position(task.time)
+        x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
         tb_writer.add_scalar("Rocket X Position", x, task.time*100)
         tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.time*100)
         tb_writer.add_scalar("Rocket Z Position", z, task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
-            az_new, alt_new = self.getGroundTruthAzAlt(self.rocket.position)
+            az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos)
             tb_writer.add_scalar("Rocket Azimuth", az_new, task.time*100)
             tb_writer.add_scalar("Rocket Altitude", alt_new, task.time*100)
             az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
             alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
             tb_writer.add_scalar("Rocket Azimuth Derivative", az_derivative, task.time*100)
             tb_writer.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
-        self.prev_rocket_position = self.rocket.position
+        self.prev_rocket_position = rocket_pos
         self.prev_rocket_observation_time = task.time
         return Task.cont
 
@@ -86,7 +91,7 @@ class Sim(ShowBase):
         img[:50, -150:, :] = img[-50:,-150:,:]
         return img
     
-    def getGroundTruthRocketPixelCoordinates(self):
+    def getGroundTruthRocketPixelCoordinates(self, time):
         alt, az = np.deg2rad(T.Altitude), np.deg2rad(T.Azimuth)
         alt_rotation = np.array([
             [1,  0,  0],
@@ -100,7 +105,7 @@ class Sim(ShowBase):
             [0,  0,  1]
         ])
 
-        rocket_pos = self.rocket.position
+        rocket_pos = self.rocket.get_position(time)
 
         rocket_cam_pos = alt_rotation.T @ az_rotation.T @ rocket_pos
 
@@ -124,9 +129,18 @@ class Sim(ShowBase):
         if img is None:
             return Task.cont
 
-        x,y = self.getGroundTruthRocketPixelCoordinates()
+        x,y = self.getGroundTruthRocketPixelCoordinates(task.time)
         
-        self.tracker.update_tracking(img,task.time*100, (x,y), self.rocket.position)
+        ground_truth_tracking_data = GroundTruthTrackingData(
+            pixel_coordinates = (x,y),
+            enu_coordinates = self.rocket.position
+        )
+        self.tracker.update_tracking(
+            img,
+            self.rocket.get_telemetry(task.time),
+            task.time*100, 
+            ground_truth_tracking_data
+        )
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
         tb_writer.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)

@@ -6,7 +6,7 @@ import os
 CURRENT_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
 
 def read_telemetry():
-    # [timestamp, GPS [latitude, longitude], GYRO [x, y, z], ACC [x, y, z], BMP Altitude]
+    '''[timestamp, GPS [latitude, longitude], GYRO [x, y, z], ACC [x, y, z], BMP Altitude]'''
     telem = []
 
     with open(f"{CURRENT_FILE_PATH}/telem.csv", "r") as f:

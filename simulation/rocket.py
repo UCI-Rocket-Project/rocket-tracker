@@ -1,5 +1,6 @@
 from read_telem import read_telemetry, get_positions
 import numpy as np
+from utils import TelemetryData
 
 def eval_poly(coefficients, t):
     n = len(coefficients)
@@ -9,7 +10,12 @@ class Rocket:
     def __init__(self, initial_position):
         self.initial_position = initial_position
         self.engine_cutoff_time = 15 
-        positions = np.array(get_positions(read_telemetry()))
+        self.telem_list = read_telemetry()
+        positions = np.array(get_positions(self.telem_list))
+
+        # offset timestamps to start at 0
+        for i in range(len(self.telem_list)):
+            self.telem_list[i][0] -= self.telem_list[0][0]
         positions[:,0]-=positions[0,0]
 
         pre_cutoff = positions[positions[:,0]<self.engine_cutoff_time]
@@ -38,9 +44,20 @@ class Rocket:
         self.pad_time = 1
         self.sim_start_time = None
     
+    def get_telemetry(self, time) -> TelemetryData:
+        '''
+        Returns the telemetry data at the given time
+        '''
+        timestamps = np.array([t[0] for t in self.telem_list])
+        timestamp, (lat,lng), gyro, accel, altimeter_reading = self.telem_list[np.argmin(abs(timestamps - time))]
+        return TelemetryData(
+            gps_lat=lat,
+            gps_lng=lng,
+            altimeter_reading=altimeter_reading
+        )
 
-    def step(self, time):
-        ''')
+    def get_position(self, time):
+        '''
             `time` should be a float, in seconds, since the start of the sim
         '''
         # self.position = self.initial_position+ np.array([0,0,2])
@@ -48,7 +65,7 @@ class Rocket:
             self.sim_start_time = time
         time -= self.sim_start_time
         if time < self.pad_time:
-            return
+            return self.initial_position
         time -= self.pad_time
         if time<self.engine_cutoff_time:
             self.position = np.array([
@@ -62,6 +79,7 @@ class Rocket:
                 eval_poly(self.y_coeff_2,time-self.engine_cutoff_time),
                 eval_poly(self.z_coeff_2,time-self.engine_cutoff_time)
             ])
+        return self.position
 
 if __name__ == "__main__":
     # plot rocket trajectory
