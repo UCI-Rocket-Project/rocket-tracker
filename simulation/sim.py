@@ -61,7 +61,7 @@ class Sim(ShowBase):
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
         tb_writer.add_scalar("Rocket X Position", x, task.time*100)
-        tb_writer.add_scalar("Rocket Y Position", y+self.camera_dist, task.time*100)
+        tb_writer.add_scalar("Rocket Y Position", y, task.time*100)
         tb_writer.add_scalar("Rocket Z Position", z, task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
