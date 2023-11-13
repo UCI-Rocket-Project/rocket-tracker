@@ -30,15 +30,19 @@ class Tracker:
         self.y_controller = PIDController(10,0,1)
         self.gps_pos = mount_initial_position # initial position of mount in GPS coordinates (lat,lng,alt)
 
+        state_dimensionality = 9
+
         self.filter = UnscentedKalmanFilter(
-            dim_x = 9, # state dimension (xyz plus their 1st and 2nd derivatives)
+            dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
             dim_z = 5, # observation dimension (altitude, azimuth, lat,lng, altimeter reading),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
-            points = JulierSigmaPoints(9)
+            points = JulierSigmaPoints(state_dimensionality)
         )
-        self.filter.x  = np.array([*rocket_initial_position,*[0]*6]) # initial state
+
+        self.filter.x  = np.zeros(state_dimensionality)
+        self.filter.x[0], self.filter.x[3], self.filter.x[6] = rocket_initial_position
         self.previous_filter_predict_time = 0
 
         self.telescope = telescope
@@ -123,8 +127,8 @@ class Tracker:
         self.logger.add_scalar("Pixel Estimate Error (X)",new_pos[0]*self.SCALE_FACTOR-gt_pos[0],global_step)
         self.logger.add_scalar("Pixel Estimate Error (Y)",new_pos[1]*self.SCALE_FACTOR-gt_pos[1],global_step)
 
-        self.logger.add_scalar("Altitude Estimate (Degrees)",altitude_from_image_processing,global_step)
-        self.logger.add_scalar("Azimuth Estimate (Degrees)",azimuth_from_image_processing,global_step)
+        self.logger.add_scalar("Imaging Altitude Estimate (Degrees)",altitude_from_image_processing,global_step)
+        self.logger.add_scalar("Imaging Azimuth Estimate (Degrees)",azimuth_from_image_processing,global_step)
 
         return altitude_from_image_processing, azimuth_from_image_processing
 
@@ -150,12 +154,14 @@ class Tracker:
 
         # TODO: set measurement noise really high for any missing measurements
         if using_image_processing:
-            self.filter.update(np.array([altitude_from_image_processing,
-                                        azimuth_from_image_processing, 
-                                        telem_measurements.gps_lat,
-                                        telem_measurements.gps_lng,
-                                        telem_measurements.altimeter_reading]))
-
+            measurement_vector = np.array([altitude_from_image_processing,
+                azimuth_from_image_processing, 
+                telem_measurements.gps_lat,
+                telem_measurements.gps_lng,
+                telem_measurements.altimeter_reading
+            ])
+            self.filter.update(measurement_vector)
+                            
         self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
         self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
         self.logger.add_scalar("Kalman Filter z", self.filter.x[6], global_step)
