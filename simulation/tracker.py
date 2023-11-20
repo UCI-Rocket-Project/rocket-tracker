@@ -41,7 +41,7 @@ class Tracker:
 
         self.filter = UnscentedKalmanFilter(
             dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 6, # observation dimension (altitude, azimuth, scale, lat,lng, altimeter reading),
+            dim_z = 3, # observation dimension (altitude, azimuth, scale, lat,lng, altimeter reading),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
@@ -89,7 +89,14 @@ class Tracker:
         new_dist = np.linalg.norm([x,y,z])
         scale = new_dist/initial_dist
         
-        return np.array([alt,az,scale,lat,lng,height])
+        return np.array([
+            alt,
+            az,
+            # scale,
+            # lat,
+            # lng,
+            height
+        ])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
         '''
@@ -165,18 +172,23 @@ class Tracker:
 
         # TODO: set measurement noise really high for any missing measurements
         np.set_printoptions(suppress=True, precision=5)
-        if using_image_processing:
-            measurement_vector = np.array([altitude_from_image_processing,
-                azimuth_from_image_processing, 
-                img_scale,
-                telem_measurements.gps_lat,
-                telem_measurements.gps_lng,
-                telem_measurements.altimeter_reading
-            ])
-            # print(measurement_vector)
-            # print(self._measurement_function(self.filter.x))
-            # print()
-            self.filter.update(measurement_vector)
+        # if using_image_processing:
+        measurement_vector = np.array([
+            altitude_from_image_processing,
+            azimuth_from_image_processing, 
+            # img_scale,
+            # telem_measurements.gps_lat,
+            # telem_measurements.gps_lng,
+            telem_measurements.altimeter_reading
+        ])
+        # print(measurement_vector)
+        # print(self._measurement_function(self.filter.x))
+        # print()
+        missing_measurements = np.array([m is None for m in measurement_vector])
+        measurement_covariance = self.filter.R
+        measurement_covariance[missing_measurements,missing_measurements] = 1e9
+        measurement_vector[missing_measurements] = 0
+        self.filter.update(measurement_vector)
                             
         self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
         self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
