@@ -181,9 +181,9 @@ class Tracker:
             # telem_measurements.gps_lng,
             telem_measurements.altimeter_reading
         ])
-        print(measurement_vector)
-        print(self._measurement_function(self.filter.x))
-        print()
+        # print(measurement_vector)
+        # print(self._measurement_function(self.filter.x))
+        # print()
         if using_image_processing:
             # missing_measurements = np.array([m is None for m in measurement_vector])
             # measurement_covariance = self.filter.R
@@ -200,7 +200,10 @@ class Tracker:
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
         # cv.imwrite("features.png",vis)
         
-        # alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
+        # if using_image_processing:
+        #     alt_setpoint, az_setpoint, *_ = measurement_vector
+        # else:
+        #     alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
         az_setpoint, alt_setpoint = ground_truth.az_alt 
 
         alt_err = alt_setpoint-self.telescope.Altitude

@@ -7,6 +7,8 @@ from telescope import Telescope
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
+from panda3d.core import SamplerState
+from panda3d.core import Shader
 
 from rocket import Rocket
 from tracker import Tracker
@@ -25,22 +27,35 @@ class Sim(ShowBase):
         ShowBase.__init__(self)
         self.setFrameRateMeter(True)
 
+        self.skybox = self.loader.loadModel("models/skybox.bam")
+        self.skybox.reparentTo(self.render)
+        self.skybox.set_scale(20000)
 
+        skybox_texture = self.loader.loadTexture("models/desert_sky_2k.jpg")
+        skybox_texture.set_minfilter(SamplerState.FT_linear)
+        skybox_texture.set_magfilter(SamplerState.FT_linear)
+        skybox_texture.set_wrap_u(SamplerState.WM_repeat)
+        skybox_texture.set_wrap_v(SamplerState.WM_mirror)
+        skybox_texture.set_anisotropic_degree(16)
+        self.skybox.set_texture(skybox_texture)
         # Disable the camera trackball controls.
+
+        skybox_shader = Shader.load(Shader.SL_GLSL, "skybox.vert.glsl", "skybox.frag.glsl")
+        self.skybox.set_shader(skybox_shader)
 
         self.disableMouse()
 
         self.camera_dist = 600
 
-        self.rocket_model = self.loader.loadModel("models/panda-model")
-        self.rocket_model.setScale(0.005, 0.005, 0.005) # the panda is about 5 meters long after this scaling
-        self.rocket_model.setHpr(0,-90,90)
+        self.rocket_model = self.loader.loadModel("models/rocket.bam")
+        self.rocket_model.setScale(0.5, 0.5, 0.5)
+        self.rocket_model.setHpr(0,0,-40)
         self.rocket_model.setPos(0,self.camera_dist,0)
         self.rocket_model.reparentTo(self.render)
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
         # self.camLens.setFov(0.9)
-        self.camera_fov = 0.9
+        self.camera_fov = 9
         self.camera_res = (958, 1078)
         self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.camLens.setFov(self.camera_fov)
