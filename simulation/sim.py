@@ -7,8 +7,7 @@ from telescope import Telescope
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
-from panda3d.core import SamplerState
-from panda3d.core import Shader
+from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 
 from rocket import Rocket
 from tracker import Tracker
@@ -54,8 +53,8 @@ class Sim(ShowBase):
         self.rocket_model.reparentTo(self.render)
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
-        # self.camLens.setFov(0.9)
-        self.camera_fov = 9
+
+        self.camera_fov = 0.9 # 0.9 degrees
         self.camera_res = (958, 1078)
         self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.camLens.setFov(self.camera_fov)
@@ -75,6 +74,10 @@ class Sim(ShowBase):
         rocket_pos = self.rocket.get_position(task.time)
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
+        if self.prev_rocket_position is not None:
+            quat = Quat()
+            lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
+            self.rocket_model.setQuat(quat)
         tb_writer.add_scalar("Rocket X Position", x, task.time*100)
         tb_writer.add_scalar("Rocket Y Position", y, task.time*100)
         tb_writer.add_scalar("Rocket Z Position", z, task.time*100)

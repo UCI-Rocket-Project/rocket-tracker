@@ -63,22 +63,17 @@ class Rocket:
         '''
             `time` should be a float, in seconds, since the start of the sim
         '''
-        # self.position = self.initial_position+ np.array([0,0,2])
-        # if self.sim_start_time is None:
-        #     self.sim_start_time = time
-        # time -= self.sim_start_time
-        # if time < self.pad_time:
-        #     return self.initial_position
-        # time -= self.pad_time
+        # x was scaled by 40 to make it be going more straight up. Before the scaling, it goes 40 meters horizontal in the first second
+        # but only 15 meters vertical, which is kinda weird. It might be my polyfit code that's wrong or the data is just weird.
         if time<self.engine_cutoff_time:
             self.position = np.array([
-                eval_poly(self.x_coeff_1, time),
+                eval_poly(self.x_coeff_1, time)/40,
                 eval_poly(self.y_coeff_1, time),
                 eval_poly(self.z_coeff_1, time)
             ])
         else:
             self.position = np.array([
-                eval_poly(self.x_coeff_2,time-self.engine_cutoff_time),
+                eval_poly(self.x_coeff_2,time-self.engine_cutoff_time)/40,
                 eval_poly(self.y_coeff_2,time-self.engine_cutoff_time),
                 eval_poly(self.z_coeff_2,time-self.engine_cutoff_time)
             ])
