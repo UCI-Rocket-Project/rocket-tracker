@@ -49,7 +49,7 @@ class Sim(ShowBase):
 
         self.rocket_model = self.loader.loadModel("models/rocket.bam")
         self.rocket_model.setScale(0.5, 0.5, 0.5)
-        self.rocket_model.setHpr(0,0,-40)
+        self.rocket_model.setHpr(0,0,0)
         self.rocket_model.setPos(0,self.camera_dist,0)
         self.rocket_model.reparentTo(self.render)
 
