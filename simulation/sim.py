@@ -24,7 +24,6 @@ class Sim(ShowBase):
     def __init__(self):
 
         ShowBase.__init__(self)
-        self.setFrameRateMeter(True)
 
         self.skybox = self.loader.loadModel("models/skybox.bam")
         self.skybox.reparentTo(self.render)
@@ -105,8 +104,6 @@ class Sim(ShowBase):
                 break
         if img is None:
             return
-        # blocks out the FPS counter by copying the part of the background in the bottom right to the top right.
-        img[:50, -150:, :] = img[-50:,-150:,:]
         return img
     
     def getGroundTruthRocketPixelCoordinates(self, time):
