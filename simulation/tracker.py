@@ -19,7 +19,7 @@ class Tracker:
                 focal_len: int, 
                 logger: SummaryWriter, 
                 telescope: Telescope, 
-                rocket_initial_position: tuple[float,float],
+                rocket_initial_position: np.ndarray,
                 mount_initial_position: np.ndarray):
         '''
         `camera_res`: camera resolution (w,h) in pixels
@@ -181,14 +181,15 @@ class Tracker:
             # telem_measurements.gps_lng,
             telem_measurements.altimeter_reading
         ])
-        # print(measurement_vector)
-        # print(self._measurement_function(self.filter.x))
-        # print()
-        missing_measurements = np.array([m is None for m in measurement_vector])
-        measurement_covariance = self.filter.R
-        measurement_covariance[missing_measurements,missing_measurements] = 1e9
-        measurement_vector[missing_measurements] = 0
-        self.filter.update(measurement_vector)
+        print(measurement_vector)
+        print(self._measurement_function(self.filter.x))
+        print()
+        if using_image_processing:
+            # missing_measurements = np.array([m is None for m in measurement_vector])
+            # measurement_covariance = self.filter.R
+            # measurement_covariance[missing_measurements,missing_measurements] = 1e9
+            # measurement_vector[missing_measurements] = 0
+            self.filter.update(measurement_vector)
                             
         self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
         self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
@@ -199,7 +200,8 @@ class Tracker:
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
         # cv.imwrite("features.png",vis)
         
-        alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
+        # alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
+        az_setpoint, alt_setpoint = ground_truth.az_alt 
 
         alt_err = alt_setpoint-self.telescope.Altitude
         az_err = az_setpoint-self.telescope.Azimuth
@@ -209,8 +211,9 @@ class Tracker:
 
         input_x = self.x_controller.step(az_err)
         input_y = self.y_controller.step(alt_err)
-        x_clipped = np.clip(input_x,-6,6)
-        y_clipped = np.clip(input_y,-6,6)
+        MAX_SLEW_RATE = 8
+        x_clipped = np.clip(input_x,-MAX_SLEW_RATE,MAX_SLEW_RATE)
+        y_clipped = np.clip(input_y,-MAX_SLEW_RATE,MAX_SLEW_RATE)
         self.logger.add_scalar("X Input", x_clipped, global_step)
         self.logger.add_scalar("Y Input", y_clipped, global_step)
         self.telescope.slewAltitudeRate(y_clipped, global_step/100)

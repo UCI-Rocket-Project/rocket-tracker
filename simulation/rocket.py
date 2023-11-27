@@ -14,8 +14,11 @@ class Rocket:
         positions = np.array(get_positions(self.telem_list))
 
         # offset timestamps to start at 0
+        self.telem_list = list(filter(lambda x: x[0]>=231730, self.telem_list)) # the rocket only starts moving at roughly second 30
+        
+        initial_timestamp = self.telem_list[0][0]
         for i in range(len(self.telem_list)):
-            self.telem_list[i][0] -= self.telem_list[0][0]
+            self.telem_list[i][0] -= initial_timestamp
         positions[:,0]-=positions[0,0]
 
         pre_cutoff = positions[positions[:,0]<self.engine_cutoff_time]
@@ -61,12 +64,12 @@ class Rocket:
             `time` should be a float, in seconds, since the start of the sim
         '''
         # self.position = self.initial_position+ np.array([0,0,2])
-        if self.sim_start_time is None:
-            self.sim_start_time = time
-        time -= self.sim_start_time
-        if time < self.pad_time:
-            return self.initial_position
-        time -= self.pad_time
+        # if self.sim_start_time is None:
+        #     self.sim_start_time = time
+        # time -= self.sim_start_time
+        # if time < self.pad_time:
+        #     return self.initial_position
+        # time -= self.pad_time
         if time<self.engine_cutoff_time:
             self.position = np.array([
                 eval_poly(self.x_coeff_1, time),
