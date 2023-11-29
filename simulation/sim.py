@@ -62,7 +62,7 @@ class Sim(ShowBase):
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         tracker_pos_gps = enu_to_gps(np.array([0,-self.camera_dist,0]), np.array([telem.gps_lat, telem.gps_lng, telem.altimeter_reading]))
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.position, tracker_pos_gps)
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.get_position(0), tracker_pos_gps)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -148,8 +148,8 @@ class Sim(ShowBase):
         
         ground_truth_tracking_data = GroundTruthTrackingData(
             pixel_coordinates = (x,y),
-            enu_coordinates = self.rocket.position,
-            az_alt = self.getGroundTruthAzAlt(self.rocket.position)
+            enu_coordinates = self.rocket.get_position(task.time),
+            az_alt = self.getGroundTruthAzAlt(self.rocket.get_position(task.time))
         )
 
         self.tracker.update_tracking(
