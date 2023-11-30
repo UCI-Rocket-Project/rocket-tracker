@@ -41,7 +41,7 @@ class Tracker:
 
         self.filter = UnscentedKalmanFilter(
             dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 3, # observation dimension (altitude, azimuth, scale, lat,lng, altimeter reading),
+            dim_z = 5, # observation dimension (altitude, azimuth, lat,lng, altimeter reading),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
@@ -93,8 +93,8 @@ class Tracker:
             alt,
             az,
             # scale,
-            # lat,
-            # lng,
+            lat,
+            lng,
             height
         ])
 
@@ -177,8 +177,8 @@ class Tracker:
             altitude_from_image_processing,
             azimuth_from_image_processing, 
             # img_scale,
-            # telem_measurements.gps_lat,
-            # telem_measurements.gps_lng,
+            telem_measurements.gps_lat,
+            telem_measurements.gps_lng,
             telem_measurements.altimeter_reading
         ])
         # print(measurement_vector)
