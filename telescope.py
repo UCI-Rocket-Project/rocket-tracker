@@ -1,7 +1,7 @@
 from alpaca.telescope import TelescopeAxes, Telescope as AlpacaTelescope
 
 class Telescope:
-    def __init__(self, azimuth=0, altitude=0):
+    def __init__(self):
         self.T = AlpacaTelescope('127.0.0.11111', 0)
         self.T.EquatorialSystem
     
