@@ -2,7 +2,7 @@ import time
 from alpaca.telescope import Telescope      # Multiple Classes including Enumerations
 from alpaca.exceptions import InvalidOperationException
 
-T = Telescope('localhost:32323', 0) # Local Omni Simulator
+T = Telescope('127.0.0.1:11111', 0) # Local Omni Simulator
 try:
     T.Connected = True
     print(f'Connected to {T.Name}')
