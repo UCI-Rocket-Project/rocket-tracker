@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints
-from utils import GroundTruthTrackingData, TelemetryData, enu_to_gps
+from utils import GroundTruthTrackingData, TelemetryData, gps_to_enu
 from dataclasses import dataclass
 
 @dataclass
@@ -84,7 +84,7 @@ class Tracker:
         x,y,z = state[0],state[3],state[6]
         alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
         az = -np.rad2deg(np.arctan2(x, y))
-        lat, lng, height = enu_to_gps(np.array([x,y,z]), self.gps_pos)
+        # lat, lng, height = enu_to_gps(np.array([x,y,z]), self.gps_pos)
         initial_dist = np.linalg.norm(self.rocket_initial_position)
         new_dist = np.linalg.norm([x,y,z])
         scale = new_dist/initial_dist
@@ -93,9 +93,7 @@ class Tracker:
             alt,
             az,
             # scale,
-            lat,
-            lng,
-            height
+            x,y,z
         ])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
@@ -173,13 +171,12 @@ class Tracker:
         # TODO: set measurement noise really high for any missing measurements
         np.set_printoptions(suppress=True, precision=5)
         # if using_image_processing:
+        x,y,z = gps_to_enu(np.array([telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading]), self.gps_pos)
         measurement_vector = np.array([
             altitude_from_image_processing,
             azimuth_from_image_processing, 
             # img_scale,
-            telem_measurements.gps_lat,
-            telem_measurements.gps_lng,
-            telem_measurements.altimeter_reading
+            x,y,z
         ])
         # print(measurement_vector)
         # print(self._measurement_function(self.filter.x))
