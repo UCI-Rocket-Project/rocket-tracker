@@ -6,7 +6,7 @@ import numpy as np
 import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
 from utils import GroundTruthTrackingData, TelemetryData
-from pymap3d import geodetic2enu
+from pymap3d import enu2geodetic
 from dataclasses import dataclass
 
 @dataclass
@@ -87,7 +87,7 @@ class Tracker:
         ax, ay, az = state[2], state[5], state[8]
         alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
         azi = -np.rad2deg(np.arctan2(x, y))
-        # lat, lng, height = enu_to_gps(np.array([x,y,z]), self.gps_pos)
+        lat, lng, height = enu2geodetic(x,y,z, *self.gps_pos)
         initial_dist = np.linalg.norm(self.rocket_initial_position)
         new_dist = np.linalg.norm([x,y,z])
         scale = new_dist/initial_dist
@@ -96,7 +96,7 @@ class Tracker:
             alt,
             azi,
             # scale,
-            x,y,z,
+            lat,lng,height,
             ax,ay,az
         ])
 
@@ -175,12 +175,13 @@ class Tracker:
         # TODO: set measurement noise really high for any missing measurements
         np.set_printoptions(suppress=True, precision=5)
         # if using_image_processing:
-        x,y,z = geodetic2enu(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading, *self.gps_pos)
         measurement_vector = np.array([
             altitude_from_image_processing,
             azimuth_from_image_processing, 
             # img_scale,
-            x,y,z,
+            telem_measurements.gps_lat,
+            telem_measurements.gps_lng,
+            telem_measurements.altimeter_reading,
             telem_measurements.accel_x,
             telem_measurements.accel_y,
             telem_measurements.accel_z,
