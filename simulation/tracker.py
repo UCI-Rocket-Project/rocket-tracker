@@ -211,11 +211,11 @@ class Tracker:
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
         # cv.imwrite("features.png",vis)
         
-        # if using_image_processing:
-        #     alt_setpoint, az_setpoint, *_ = measurement_vector
-        # else:
-        #     alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
-        az_setpoint, alt_setpoint = ground_truth.az_alt 
+        if using_image_processing:
+            alt_setpoint, az_setpoint, *_ = measurement_vector
+        else:
+            alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
+        # az_setpoint, alt_setpoint = ground_truth.az_alt 
 
         alt_err = alt_setpoint-self.telescope.Altitude
         az_err = az_setpoint-self.telescope.Azimuth
