@@ -11,12 +11,14 @@ from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 
 from rocket import Rocket
 from tracker import Tracker
-from utils import GroundTruthTrackingData, TelemetryData, gps_to_enu, enu_to_gps
+from utils import GroundTruthTrackingData, TelemetryData
+from pymap3d import geodetic2enu, enu2geodetic
 
 
 os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
-tb_writer = SummaryWriter(f'runs/{num_prev_runs}')
+gt_logger = SummaryWriter(f'runs/{num_prev_runs}/ground_truth')
+estimate_logger = SummaryWriter(f'runs/{num_prev_runs}/prediction')
 T = Telescope(azimuth=0, altitude=0)
 
 class Sim(ShowBase):
@@ -61,8 +63,8 @@ class Sim(ShowBase):
         self.rocket = Rocket(np.array([0,self.camera_dist,0]))
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
-        tracker_pos_gps = enu_to_gps(np.array([0,-self.camera_dist,0]), np.array([telem.gps_lat, telem.gps_lng, telem.altimeter_reading]))
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, tb_writer, T, self.rocket.get_position(0), tracker_pos_gps)
+        tracker_pos_gps = enu2geodetic(0,-self.camera_dist,0, telem.gps_lat, telem.gps_lng, telem.altimeter_reading)
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, estimate_logger, T, self.rocket.get_position(0), tracker_pos_gps)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -71,24 +73,36 @@ class Sim(ShowBase):
 
     def rocketPhysicsTask(self, task):
         rocket_pos = self.rocket.get_position(task.time)
+        rocket_vel = self.rocket.get_velocity(task.time)
+        rocket_accel = self.rocket.get_acceleration(task.time)
+        telem = self.rocket.get_telemetry(task.time)
+        
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
         if self.prev_rocket_position is not None:
             quat = Quat()
             lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
             self.rocket_model.setQuat(quat)
-        tb_writer.add_scalar("Rocket X Position", x, task.time*100)
-        tb_writer.add_scalar("Rocket Y Position", y, task.time*100)
-        tb_writer.add_scalar("Rocket Z Position", z, task.time*100)
+        gt_logger.add_scalar("Rocket Position X", x, task.time*100)
+        gt_logger.add_scalar("Rocket Position Y", y, task.time*100)
+        gt_logger.add_scalar("Rocket Position Z", z, task.time*100)
+
+        gt_logger.add_scalar("Rocket Velocity X", rocket_vel[0], task.time*100)
+        gt_logger.add_scalar("Rocket Velocity Y", rocket_vel[1], task.time*100)
+        gt_logger.add_scalar("Rocket Velocity Z", rocket_vel[2], task.time*100)
+
+        gt_logger.add_scalar("Rocket Acceleration X", rocket_accel[0], task.time*100)
+        gt_logger.add_scalar("Rocket Acceleration Y", rocket_accel[1], task.time*100)
+        gt_logger.add_scalar("Rocket Acceleration Z", rocket_accel[2], task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
             az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos)
-            tb_writer.add_scalar("Rocket Azimuth", az_new, task.time*100)
-            tb_writer.add_scalar("Rocket Altitude", alt_new, task.time*100)
+            gt_logger.add_scalar("Rocket Azimuth", az_new, task.time*100)
+            gt_logger.add_scalar("Rocket Altitude", alt_new, task.time*100)
             az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
             alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
-            tb_writer.add_scalar("Rocket Azimuth Derivative", az_derivative, task.time*100)
-            tb_writer.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
+            gt_logger.add_scalar("Rocket Azimuth Derivative", az_derivative, task.time*100)
+            gt_logger.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
         self.prev_rocket_position = rocket_pos
         self.prev_rocket_observation_time = task.time
         return Task.cont
@@ -160,8 +174,8 @@ class Sim(ShowBase):
         )
 
         self.camera.setHpr(T.Azimuth,T.Altitude,0)
-        tb_writer.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)
-        tb_writer.add_scalar("Telescope Altitude", T.Altitude, task.time*100)
+        gt_logger.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)
+        gt_logger.add_scalar("Telescope Altitude", T.Altitude, task.time*100)
 
         # cv.circle(img, [x,y], 10, (255,0,0), -1)
         # cv.imwrite("latest.png", img) 

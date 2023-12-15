@@ -4,8 +4,9 @@ from telescope import Telescope
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
-from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints
-from utils import GroundTruthTrackingData, TelemetryData, gps_to_enu
+from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
+from utils import GroundTruthTrackingData, TelemetryData
+from pymap3d import geodetic2enu
 from dataclasses import dataclass
 
 @dataclass
@@ -41,11 +42,12 @@ class Tracker:
 
         self.filter = UnscentedKalmanFilter(
             dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 5, # observation dimension (altitude, azimuth, lat,lng, altimeter reading),
+            dim_z = 8, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
-            points = JulierSigmaPoints(state_dimensionality)
+            # points = JulierSigmaPoints(state_dimensionality)
+            points = MerweScaledSigmaPoints(state_dimensionality, 1e-3, 2, 0)
         )
 
         self.rocket_initial_position = rocket_initial_position
@@ -82,8 +84,9 @@ class Tracker:
 
     def _measurement_function(self, state: np.ndarray):
         x,y,z = state[0],state[3],state[6]
+        ax, ay, az = state[2], state[5], state[8]
         alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
-        az = -np.rad2deg(np.arctan2(x, y))
+        azi = -np.rad2deg(np.arctan2(x, y))
         # lat, lng, height = enu_to_gps(np.array([x,y,z]), self.gps_pos)
         initial_dist = np.linalg.norm(self.rocket_initial_position)
         new_dist = np.linalg.norm([x,y,z])
@@ -91,9 +94,10 @@ class Tracker:
         
         return np.array([
             alt,
-            az,
+            azi,
             # scale,
-            x,y,z
+            x,y,z,
+            ax,ay,az
         ])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
@@ -164,34 +168,44 @@ class Tracker:
 
         self.logger.add_scalar("Using image processing", int(using_image_processing), global_step)
 
-
-        self.filter.predict(global_step-self.previous_filter_predict_time)
+        filter_pred_time = global_step-self.previous_filter_predict_time
+        self.filter.predict(filter_pred_time/100)
         self.previous_filter_predict_time = global_step
 
         # TODO: set measurement noise really high for any missing measurements
         np.set_printoptions(suppress=True, precision=5)
         # if using_image_processing:
-        x,y,z = gps_to_enu(np.array([telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading]), self.gps_pos)
+        x,y,z = geodetic2enu(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading, *self.gps_pos)
         measurement_vector = np.array([
             altitude_from_image_processing,
             azimuth_from_image_processing, 
             # img_scale,
-            x,y,z
+            x,y,z,
+            telem_measurements.accel_x,
+            telem_measurements.accel_y,
+            telem_measurements.accel_z,
         ])
         # print(measurement_vector)
         # print(self._measurement_function(self.filter.x))
         # print()
-        if using_image_processing:
+        if using_image_processing: # TODO make this actually conditional
             # missing_measurements = np.array([m is None for m in measurement_vector])
             # measurement_covariance = self.filter.R
             # measurement_covariance[missing_measurements,missing_measurements] = 1e9
             # measurement_vector[missing_measurements] = 0
             self.filter.update(measurement_vector)
                             
-        self.logger.add_scalar("Kalman Filter x", self.filter.x[0], global_step)
-        self.logger.add_scalar("Kalman Filter y", self.filter.x[3], global_step)
-        self.logger.add_scalar("Kalman Filter z", self.filter.x[6], global_step)
+        self.logger.add_scalar("Rocket Position X", self.filter.x[0], global_step)
+        self.logger.add_scalar("Rocket Position Y", self.filter.x[3], global_step)
+        self.logger.add_scalar("Rocket Position Z", self.filter.x[6], global_step)
 
+        self.logger.add_scalar("Rocket Velocity X", self.filter.x[1], global_step)
+        self.logger.add_scalar("Rocket Velocity Y", self.filter.x[4], global_step)
+        self.logger.add_scalar("Rocket Velocity Z", self.filter.x[7], global_step)
+
+        self.logger.add_scalar("Rocket Acceleration X", self.filter.x[2], global_step)
+        self.logger.add_scalar("Rocket Acceleration Y", self.filter.x[5], global_step)
+        self.logger.add_scalar("Rocket Acceleration Z", self.filter.x[8], global_step)
         # vis = cv.drawKeypoints(gray,keypoints,None,flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         # box_size = np.array([20,20])
         # cv.rectangle(gray, new_pos-box_size//2, new_pos+box_size//2, (0,255,0),2)
