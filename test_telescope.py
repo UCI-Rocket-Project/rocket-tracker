@@ -1,14 +1,33 @@
 from telescope import Telescope
-from time import sleep
 
-telescope = Telescope(sim=False)
+telescope = Telescope()
 
-telescope.slewAzimuthRate(8.0)
+telescope.slew_rate_azi_alt(-8,0)
 
-sleep(1)
+speed = 0
+while speed < 8:
+    speed = telescope.read_azi_speed()
 
-telescope.slewAzimuthRate(-8.0)
+print("-"*30)
 
-sleep(1)
+telescope.slew_rate_azi_alt(8,0)
 
-telescope.slewAzimuthRate(0.0)
+speed = 0
+while speed < 8:
+    speed = telescope.read_azi_speed()
+
+telescope.slew_rate_azi_alt(0,6)
+
+speed = 0
+while speed < 6:
+    speed = telescope.read_alt_speed()
+
+print("-"*30)
+
+telescope.slew_rate_azi_alt(0,-6)
+
+speed = 0
+while speed < 6:
+    speed = telescope.read_alt_speed()
+
+telescope.slew_rate_azi_alt(0,0)
