@@ -2,7 +2,7 @@ import serial
 from time import sleep
 
 class Telescope:
-    def __init__(self, sim=True):
+    def __init__(self):
         self.serial_connection = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
         # read mount info
         self.serial_connection.write(b':MountInfo#')
@@ -25,8 +25,8 @@ class Telescope:
         Rates are both in degrees per second
         Max magnitude is 8 for azi, and 6 for alt
         '''
-        assert abs(azi_rate) <= 8
-        assert abs(alt_rate) <= 6 
+        assert abs(azi_rate) <= 8, f"{azi_rate} > 8"
+        assert abs(alt_rate) <= 6, f"{alt_rate} > 6" 
 
         # convert to integer unit of 0.01 arcsec per second
         azi_rate_arcsec = abs(int(azi_rate * 3600 * 100))
@@ -76,6 +76,9 @@ class Telescope:
         alt_pos = alt_raw_pos / 3600 / 100
 
         return azi_pos, alt_pos
+
+    def stop(self):
+        self.slew_rate_azi_alt(0,0)
     
     @property
     def Azimuth(self):
