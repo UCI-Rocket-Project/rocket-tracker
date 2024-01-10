@@ -1,7 +1,7 @@
 import pygame
 from telescope import Telescope
 
-# t = Telescope(sim=True)
+t = Telescope(sim=False)
 
 pygame.init()
 pygame.joystick.init()
@@ -23,3 +23,16 @@ while True:
             axis[event.axis] = event.value
     
     print(axis)
+
+    if LEFT_AXIS_X not in axis:
+        t.slewAzimuthRate(0)
+        continue
+
+    if axis[LEFT_AXIS_X] > 0.5:
+        print("RIGHT")
+        t.slewAzimuthRate(8)
+    elif axis[LEFT_AXIS_X] < 0.5:
+        print("LEFT")
+        t.slewAzimuthRate(-8)
+    else:
+        t.slewAzimuthRate(0)
