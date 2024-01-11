@@ -2,6 +2,12 @@ import serial
 from time import sleep
 
 class Telescope:
+    '''
+    Class for interfacing with the telescope mount (HAZ31)
+
+    The telescope needs to be plugged in via USB to the computer. 
+    It goes like HAZ31 -> cable -> Hand Controller -> USB -> Computer
+    '''
     def __init__(self):
         self.serial_connection = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
         # read mount info
@@ -36,7 +42,7 @@ class Telescope:
         alt_sign = '+' if alt_rate >= 0 else '-'
 
         command = f":M2{azi_sign}{azi_rate_arcsec:07d}{alt_sign}{alt_rate_arcsec:07d}#"
-        print("Sending command:", command)
+        # print("Sending command:", command)
         self.serial_connection.write(command.encode())
         
         success = self.serial_connection.read(1) == b'1'
@@ -68,9 +74,9 @@ class Telescope:
         '''
 
         self.serial_connection.write(b":P2#")        
-        raw_response = self.serial_connection.read(3+2*7)
-        azi_raw_pos = int(raw_response[1:8])
-        alt_raw_pos = int(raw_response[9:16])
+        raw_response = self.serial_connection.read(3+2*9)
+        azi_raw_pos = int(raw_response[1:10])
+        alt_raw_pos = int(raw_response[11:20])
 
         azi_pos = azi_raw_pos / 3600 / 100
         alt_pos = alt_raw_pos / 3600 / 100
