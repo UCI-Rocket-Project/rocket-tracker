@@ -7,12 +7,17 @@ import numpy as np
 import cv2 as cv
 from time import time, strftime
 
+# outside rocket lab garage
+MOUNT_GPS_LAT = 33.6449307
+MOUNT_GPS_LNG = -117.8413249
+
 t = Telescope()
-gain = 300
+# reasonable range for gain is 50-1000
+gain = 150
 cam = Camera(gain=gain)
 focal_length_pixels = 12.5 / 2.9e-3
 logger = SummaryWriter(f'runs/telescope_control')
-tracker = Tracker((1920, 1080), focal_length_pixels, logger, t, (0,0,0), (0,0,-100))
+tracker = Tracker((1920, 1080), focal_length_pixels, logger, t, t.read_position(), 100, (MOUNT_GPS_LAT,MOUNT_GPS_LNG))
 
 pygame.init()
 pygame.joystick.init()
@@ -86,17 +91,19 @@ def handle_button_press(button: int):
         gain -= 50 
         cam.set_gain(gain)
 
-    elif button == BUTTON_TRIANGLE:
+    elif button == BUTTON_SQUARE:
         print("Tracking toggled")
         tracking = not tracking
 
 
 def tracker_control(img):
-    tracker.update_tracking(img, None, 0, None)
+    return tracker.update_tracking(img, None, 0, None)
 
 start_time_tenth_second = (time()%1) 
+pixel_pos = None
 
 def main():
+    global pixel_pos
     # retrieve any events ...
     for event in pygame.event.get():
         if event.type == pygame.JOYAXISMOTION:
@@ -106,8 +113,11 @@ def main():
 
 
     img = cam.take_picture()
-    if tracking and False:
-        tracker_control(img)
+    
+    if tracking:
+        ret_val = tracker_control(img)
+        if ret_val is not None:
+            pixel_pos = ret_val
     else:
         joystick_control()
 
@@ -125,17 +135,29 @@ def main():
 
 
     # resize to half size
-    img = cv.resize(img, (960,540))
+    scale_factor = 2
+    img = cv.resize(img, (1920//scale_factor, 1080//scale_factor))
 
     # # draw a crosshair
     h,w = img.shape[:2]
     cv.line(img, (w//2-50,h//2), (w//2+50,h//2), (0,0,255), 1)
     cv.line(img, (w//2,h//2-50), (w//2,h//2+50), (0,0,255), 1)
-    if recording:
-        cv.circle(img, (w-30,30),20,(0,0,255),-1)
+
+    circle_thickness = -1 if recording else 2
+    cv.circle(img, (w-30,30),20,(0,0,255),circle_thickness)
+
+    rect_thickness = -1 if tracking else 2
+    cv.rectangle(img, (w-50, h-50), (w-20, h-20), (255,0,255), rect_thickness)
 
     if tracking:
-        cv.rectangle(img, (w-50, h-50), (w-20, h-20), (255,0,0), -1)
+        # draw green circle around pixel pos
+        if ret_val is None:
+            color = (0,0,255)
+        else:
+            color = (0,255,0)
+        
+        if pixel_pos is not None:
+            cv.circle(img, pixel_pos//scale_factor, 10, color, 3)
 
     cv.imshow("Camera Image", img)
 

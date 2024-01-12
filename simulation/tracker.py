@@ -20,8 +20,9 @@ class Tracker:
                 focal_len: int, 
                 logger: SummaryWriter, 
                 telescope: SimTelescope, 
-                rocket_initial_position: np.ndarray,
-                mount_initial_position: np.ndarray):
+                mount_initial_aim: tuple[float,float],
+                rocket_initial_distance: float,
+                mount_initial_gps: tuple[float,float]):
         '''
         `camera_res`: camera resolution (w,h) in pixels
         `focal_len`: focal length in pixels
@@ -37,13 +38,13 @@ class Tracker:
         self.logger = logger
         self.x_controller = PIDController(10,0,1)
         self.y_controller = PIDController(10,0,1)
-        self.gps_pos = mount_initial_position # initial position of mount in GPS coordinates (lat,lng,alt)
+        self.gps_pos = (*mount_initial_gps, 0) # initial position of mount in GPS coordinates (lat,lng,alt)
 
         state_dimensionality = 9
 
         self.filter = UnscentedKalmanFilter(
             dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 8, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
+            dim_z = 2, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
@@ -51,9 +52,26 @@ class Tracker:
             points = MerweScaledSigmaPoints(state_dimensionality, 1e-3, 2, 0)
         )
 
-        self.rocket_initial_position = rocket_initial_position
+        azi, alt = map(np.deg2rad, mount_initial_aim) # in radians now
+
+        start_vector = np.array([0,0,1])
+        # rotate by azi and alt degrees
+        rot_azi_mat = np.array([
+            [np.cos(azi),0,np.sin(azi)],
+            [0,1,0],
+            [-np.sin(azi),0,np.cos(azi)]
+        ])
+
+        rot_alt_mat = np.array([
+            [1,0,0],
+            [0,np.cos(alt),np.sin(alt)],
+            [0,-np.sin(alt),np.cos(alt)]
+        ])
+
+
+        self.rocket_initial_position = rot_alt_mat @ rot_azi_mat @ start_vector * rocket_initial_distance
         self.filter.x  = np.zeros(state_dimensionality)
-        self.filter.x[0], self.filter.x[3], self.filter.x[6] = rocket_initial_position
+        self.filter.x[0], self.filter.x[3], self.filter.x[6] = self.rocket_initial_position
         self.previous_filter_predict_time = 0
 
         self.telescope = telescope
@@ -97,8 +115,8 @@ class Tracker:
             alt,
             azi,
             # scale,
-            lat,lng,height,
-            ax,ay,az
+            # lat,lng,height,
+            # ax,ay,az
         ])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
@@ -111,22 +129,25 @@ class Tracker:
         divided by the initial apparent object size
         '''
         gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-        gray = cv.resize(gray, np.array(img.shape)[:2]//self.SCALE_FACTOR) # resize to make computation faster
+        h,w = img.shape[:2]
+        gray = cv.resize(gray, np.array([w,h])//self.SCALE_FACTOR) # resize to make computation faster
         keypoints, descriptions = self.feature_detector.detectAndCompute(gray,None)
+        # visualize keypoints on image
+        # cv.drawKeypoints(gray, keypoints, None, flags=cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # cv.imshow("Keypoints",gray)
         points = np.array([kp.pt for kp in keypoints])
 
         if len(keypoints) == 0:
-            return None, None, None
+            return None, None, None, None
 
         center = np.array(gray.shape)//2
         if self.target_feature is None:
-            closest_dist = np.linalg.norm(center*2)
+            closest_dist = np.linalg.norm(center)
             for dist, description, keypoint in zip(np.linalg.norm(points-center,axis=1),descriptions, keypoints):
                 if dist<closest_dist:
                     self.target_feature = Feature(description, keypoint.size)
                     self.initial_feature_size = keypoint.size
                     closest_dist = dist
-        
         # find coordinates of closest feature point
         max_similarity = 0
         new_pos = None
@@ -140,20 +161,23 @@ class Tracker:
         self.target_feature = new_feature
 
         if new_pos is None:
-            return None, None, None
+            return None, None, None, None
 
         t_azi, t_alt = self.telescope.read_position()
 
         altitude_from_image_processing = t_alt+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
         azimuth_from_image_processing = t_azi+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))
         
-        self.logger.add_scalar("Pixel Estimate Error (X)",new_pos[0]*self.SCALE_FACTOR-gt_pos[0],global_step)
-        self.logger.add_scalar("Pixel Estimate Error (Y)",new_pos[1]*self.SCALE_FACTOR-gt_pos[1],global_step)
+        if gt_pos is not None:
+            self.logger.add_scalar("Pixel Estimate Error (X)",new_pos[0]*self.SCALE_FACTOR-gt_pos[0],global_step)
+            self.logger.add_scalar("Pixel Estimate Error (Y)",new_pos[1]*self.SCALE_FACTOR-gt_pos[1],global_step)
 
         self.logger.add_scalar("Imaging Altitude Estimate (Degrees)",altitude_from_image_processing,global_step)
         self.logger.add_scalar("Imaging Azimuth Estimate (Degrees)",azimuth_from_image_processing,global_step)
 
-        return altitude_from_image_processing, azimuth_from_image_processing, new_feature.size/self.initial_feature_size
+        pixel_loc = np.array(new_pos) * self.SCALE_FACTOR
+
+        return altitude_from_image_processing, azimuth_from_image_processing, new_feature.size/self.initial_feature_size, pixel_loc
 
 
     def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, global_step: int, ground_truth: GroundTruthTrackingData) -> tuple[int,int]:
@@ -164,8 +188,7 @@ class Tracker:
         `pos_estimate`: estimated position of rocket relative to the mount, where the mount 
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
-        print("start tracking")
-        altitude_from_image_processing, azimuth_from_image_processing, img_scale = self.estimate_az_alt_scale_from_img(img, global_step, ground_truth.pixel_coordinates)
+        altitude_from_image_processing, azimuth_from_image_processing, img_scale, pixel_pos = self.estimate_az_alt_scale_from_img(img, global_step, ground_truth.pixel_coordinates if ground_truth else None)
 
         using_image_processing = altitude_from_image_processing is not None
 
@@ -182,15 +205,14 @@ class Tracker:
             altitude_from_image_processing,
             azimuth_from_image_processing, 
             # img_scale,
-            telem_measurements.gps_lat,
-            telem_measurements.gps_lng,
-            telem_measurements.altimeter_reading,
-            telem_measurements.accel_x,
-            telem_measurements.accel_y,
-            telem_measurements.accel_z,
+            # telem_measurements.gps_lat,
+            # telem_measurements.gps_lng,
+            # telem_measurements.altimeter_reading,
+            # telem_measurements.accel_x,
+            # telem_measurements.accel_y,
+            # telem_measurements.accel_z,
         ])
 
-        print("prob crashed before")
         # print(measurement_vector)
         # print(self._measurement_function(self.filter.x))
         # print()
@@ -239,4 +261,6 @@ class Tracker:
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
         self.logger.add_scalar("X Input", x_clipped, global_step)
         self.logger.add_scalar("Y Input", y_clipped, global_step)
-        self.telescope.slew_rate_azi_alt(x_clipped, y_clipped, global_step/100)
+        # self.telescope.slew_rate_azi_alt(x_clipped, y_clipped)
+
+        return pixel_pos
