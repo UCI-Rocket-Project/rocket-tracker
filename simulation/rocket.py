@@ -17,12 +17,15 @@ class Rocket:
         return np.array([test_flight.ax(time), test_flight.ay(time), test_flight.az(time)])
 
     def get_telemetry(self, time):
+        GPS_NOISE_STD = 0#1e-4
+        ALT_NOISE_STD = 0#10
+        ACC_NOISE_STD = 0#1e-2
         telem_data = TelemetryData(
-            gps_lat=test_flight.latitude(time),
-            gps_lng=test_flight.longitude(time),
-            altimeter_reading=test_flight.z(time),
-            accel_x = test_flight.ax(time),
-            accel_y = test_flight.ay(time),
-            accel_z = test_flight.az(time),
+            gps_lat=test_flight.latitude(time) + np.random.normal(GPS_NOISE_STD),
+            gps_lng=test_flight.longitude(time) + np.random.normal(GPS_NOISE_STD),
+            altimeter_reading=test_flight.z(time) + np.random.normal(ALT_NOISE_STD),
+            accel_x = test_flight.ax(time) + np.random.normal(ACC_NOISE_STD),
+            accel_y = test_flight.ay(time) + np.random.normal(ACC_NOISE_STD),
+            accel_z = test_flight.az(time) + np.random.normal(ACC_NOISE_STD),
         )
         return telem_data
