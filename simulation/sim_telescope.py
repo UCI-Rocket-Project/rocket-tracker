@@ -1,0 +1,27 @@
+class SimTelescope:
+    '''
+    Simulated telescope mount that should have the same interface as the real telescope class (telescope.Telescope)
+    '''
+    def __init__(self, azimuth=0, altitude=0):
+        self._azimuth = azimuth 
+        self._altitude = altitude 
+        self._azimuth_rate = 0
+        self._altitude_rate = 0
+        self._last_updated_time = 0
+
+    def slew_rate_azi_alt(self, azi_rate: float, alt_rate: float, time: float):
+        '''
+        Slew the telescope at the given rates in degrees per second
+        time (in seconds) is used to calculate the change in position
+        '''
+        self.step(time)
+        self._azimuth_rate = azi_rate
+        self._altitude_rate = alt_rate
+
+    def step(self, time):
+        self._altitude+= self._altitude_rate*(time-self._last_updated_time)
+        self._azimuth+= self._azimuth_rate*(time-self._last_updated_time)
+        self._last_updated_time = time
+
+    def read_position(self):
+        return self._azimuth, self._altitude

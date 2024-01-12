@@ -2,7 +2,7 @@ import numpy as np
 import os
 import cv2 as cv
 from torch.utils.tensorboard import SummaryWriter
-from telescope import Telescope
+from sim_telescope import SimTelescope
 
 from direct.showbase.ShowBase import ShowBase
 
@@ -19,7 +19,7 @@ os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
 gt_logger = SummaryWriter(f'runs/{num_prev_runs}/ground_truth')
 estimate_logger = SummaryWriter(f'runs/{num_prev_runs}/prediction')
-T = Telescope(azimuth=0, altitude=0)
+T = SimTelescope(azimuth=0, altitude=0)
 
 class Sim(ShowBase):
 
@@ -121,7 +121,8 @@ class Sim(ShowBase):
         return img
     
     def getGroundTruthRocketPixelCoordinates(self, time):
-        alt, az = np.deg2rad(T.Altitude), np.deg2rad(T.Azimuth)
+        t_azi, t_alt  = T.read_position()
+        az, alt = np.deg2rad(t_azi), np.deg2rad(t_alt)
         alt_rotation = np.array([
             [1,  0,  0],
             [0,  np.cos(alt),  -np.sin(alt)],
@@ -173,9 +174,10 @@ class Sim(ShowBase):
             ground_truth_tracking_data
         )
 
-        self.camera.setHpr(T.Azimuth,T.Altitude,0)
-        gt_logger.add_scalar("Telescope Azimuth", T.Azimuth, task.time*100)
-        gt_logger.add_scalar("Telescope Altitude", T.Altitude, task.time*100)
+        t_azi, t_alt  = T.read_position()
+        self.camera.setHpr(t_azi, t_alt,0)
+        gt_logger.add_scalar("Telescope Azimuth", t_azi, task.time*100)
+        gt_logger.add_scalar("Telescope Altitude", t_alt, task.time*100)
 
         # cv.circle(img, [x,y], 10, (255,0,0), -1)
         # cv.imwrite("latest.png", img) 

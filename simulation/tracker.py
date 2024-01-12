@@ -1,11 +1,11 @@
-from pid_controller import PIDController
+from .pid_controller import PIDController
 
-from telescope import Telescope
+from .sim_telescope import SimTelescope
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
-from utils import GroundTruthTrackingData, TelemetryData
+from .utils import GroundTruthTrackingData, TelemetryData
 from pymap3d import enu2geodetic
 from dataclasses import dataclass
 
@@ -19,14 +19,15 @@ class Tracker:
                 camera_res: tuple[int,int], 
                 focal_len: int, 
                 logger: SummaryWriter, 
-                telescope: Telescope, 
+                telescope: SimTelescope, 
                 rocket_initial_position: np.ndarray,
                 mount_initial_position: np.ndarray):
         '''
         `camera_res`: camera resolution (w,h) in pixels
         `focal_len`: focal length in pixels
         `logger`: tensorboard logger
-        `telescope`: telescope object for controlling the telescope with ASCOM Alpaca
+        `telescope`: telescope object for controlling the telescope with ASCOM Alpaca. 
+                    Can be a Telescope or SimTelescope. They have the same interface
         `rocket_initial_position`: initial position of the rocket in GPS coordinates (lat,lng)
         `mount_initial_position`: initial position of the mount in GPS coordinates (lat,lng)
         '''
@@ -141,8 +142,10 @@ class Tracker:
         if new_pos is None:
             return None, None, None
 
-        altitude_from_image_processing = self.telescope.Altitude+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
-        azimuth_from_image_processing = self.telescope.Azimuth+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))
+        t_azi, t_alt = self.telescope.read_position()
+
+        altitude_from_image_processing = t_alt+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
+        azimuth_from_image_processing = t_azi+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))
         
         self.logger.add_scalar("Pixel Estimate Error (X)",new_pos[0]*self.SCALE_FACTOR-gt_pos[0],global_step)
         self.logger.add_scalar("Pixel Estimate Error (Y)",new_pos[1]*self.SCALE_FACTOR-gt_pos[1],global_step)
@@ -161,7 +164,7 @@ class Tracker:
         `pos_estimate`: estimated position of rocket relative to the mount, where the mount 
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
-
+        print("start tracking")
         altitude_from_image_processing, azimuth_from_image_processing, img_scale = self.estimate_az_alt_scale_from_img(img, global_step, ground_truth.pixel_coordinates)
 
         using_image_processing = altitude_from_image_processing is not None
@@ -186,6 +189,8 @@ class Tracker:
             telem_measurements.accel_y,
             telem_measurements.accel_z,
         ])
+
+        print("prob crashed before")
         # print(measurement_vector)
         # print(self._measurement_function(self.filter.x))
         # print()
@@ -218,8 +223,10 @@ class Tracker:
             alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
         # az_setpoint, alt_setpoint = ground_truth.az_alt 
 
-        alt_err = alt_setpoint-self.telescope.Altitude
-        az_err = az_setpoint-self.telescope.Azimuth
+        t_azi, t_alt = self.telescope.read_position()
+
+        alt_err = alt_setpoint-t_alt
+        az_err = az_setpoint-t_azi
 
         self.logger.add_scalar("Altitude Tracking Error (Degrees)",alt_err,global_step)
         self.logger.add_scalar("Azimuth Tracking Error (Degrees)",az_err,global_step)
@@ -232,5 +239,4 @@ class Tracker:
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
         self.logger.add_scalar("X Input", x_clipped, global_step)
         self.logger.add_scalar("Y Input", y_clipped, global_step)
-        self.telescope.slewAltitudeRate(y_clipped, global_step/100)
-        self.telescope.slewAzimuthRate(x_clipped, global_step/100)
+        self.telescope.slew_rate_azi_alt(x_clipped, y_clipped, global_step/100)
