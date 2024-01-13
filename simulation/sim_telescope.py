@@ -8,6 +8,7 @@ class SimTelescope:
         self._azimuth_rate = 0
         self._altitude_rate = 0
         self._last_updated_time = 0
+        self.is_fake = True
 
     def slew_rate_azi_alt(self, azi_rate: float, alt_rate: float, time: float):
         '''

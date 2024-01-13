@@ -2,16 +2,16 @@ import numpy as np
 import os
 import cv2 as cv
 from torch.utils.tensorboard import SummaryWriter
-from sim_telescope import SimTelescope
+from .sim_telescope import SimTelescope
 
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
 from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 
-from rocket import Rocket
-from tracker import Tracker
-from utils import GroundTruthTrackingData, TelemetryData
+from .rocket import Rocket
+from .tracker import Tracker
+from .utils import GroundTruthTrackingData, TelemetryData
 from pymap3d import geodetic2enu, enu2geodetic
 
 
@@ -64,7 +64,7 @@ class Sim(ShowBase):
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         tracker_pos_gps = enu2geodetic(0,-self.camera_dist,0, telem.gps_lat, telem.gps_lng, telem.altimeter_reading)
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, estimate_logger, T, self.rocket.get_position(0), tracker_pos_gps)
+        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, estimate_logger, T, (0,0), self.camera_dist, tracker_pos_gps[:-1]) # exclude altitude from position
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")

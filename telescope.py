@@ -25,6 +25,7 @@ class Telescope:
         elif mount_info != b'8035':
             raise RuntimeError("Failed to connect to telescope")
         print("Telescope connected")
+        self.is_fake = False
 
     def slew_rate_azi_alt(self, azi_rate: float, alt_rate: float):
         '''

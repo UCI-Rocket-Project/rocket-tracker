@@ -118,7 +118,7 @@ COPV = MassFlowRateBasedTank(
 ## Engine
 # DEFINING ORIGIN AS Center of dry mass
 PTE = LiquidMotor(
-    thrust_source="flight_model_data/USETHIS_EstimatedFlightThrustOverTime.csv",
+    thrust_source="simulation/flight_model_data/USETHIS_EstimatedFlightThrustOverTime.csv",
     reshape_thrust_curve=(False),
     center_of_dry_mass_position=1.88976,
     dry_inertia=(0, 0, 0),
@@ -140,8 +140,8 @@ PTR = Rocket(
     radius=0.147066,
     mass=91.777-PTE.dry_mass,
     inertia=(208, 208, 1.26),
-    power_off_drag="flight_model_data/drag.csv",
-    power_on_drag="flight_model_data/drag.csv",
+    power_off_drag="simulation/flight_model_data/drag.csv",
+    power_on_drag="simulation/flight_model_data/drag.csv",
     center_of_mass_without_motor=3.005328,
     coordinate_system_orientation="tail_to_nose",
 )

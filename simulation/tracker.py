@@ -261,6 +261,9 @@ class Tracker:
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
         self.logger.add_scalar("X Input", x_clipped, global_step)
         self.logger.add_scalar("Y Input", y_clipped, global_step)
-        # self.telescope.slew_rate_azi_alt(x_clipped, y_clipped)
+        if self.telescope.is_fake:
+            self.telescope.slew_rate_azi_alt(x_clipped, y_clipped, global_step/100)
+        else:
+            self.telescope.slew_rate_azi_alt(x_clipped, y_clipped)
 
         return pixel_pos
