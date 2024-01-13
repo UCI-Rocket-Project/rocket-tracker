@@ -102,6 +102,8 @@ def tracker_control(img):
 start_time_tenth_second = (time()%1) 
 pixel_pos = None
 
+sun_azi_alt = (0, 90)
+
 def main():
     global pixel_pos
     # retrieve any events ...
@@ -123,11 +125,13 @@ def main():
 
     # # draw current position
     cv.rectangle(img, (10,50), (200,0), (0,0,0), -1)
-    # azi, alt = t.read_position()
+    azi, alt = t.read_position()
     readout_text = ""
     readout_text += f"Gain: {gain}"
-    # readout_text += f"\nazi: {azi:.2f} alt: {alt:.2f}"
-    cv.putText(img, readout_text, (10,20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+    readout_text += f"\nazi: {azi:.2f} alt: {alt:.2f}"
+    for i, line in enumerate(readout_text.split('\n')):
+        cv.putText(img, line, (10,20+i*15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+
     
 
     if recording:
@@ -135,7 +139,7 @@ def main():
 
 
     # resize to half size
-    scale_factor = 2
+    scale_factor = 1
     img = cv.resize(img, (1920//scale_factor, 1080//scale_factor))
 
     # # draw a crosshair
