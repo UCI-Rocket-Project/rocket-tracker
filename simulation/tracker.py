@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
-from .utils import GroundTruthTrackingData, TelemetryData
+from .utils import GroundTruthTrackingData, TelemetryData, azi_rot_mat, alt_rot_mat
 from pymap3d import enu2geodetic
 from dataclasses import dataclass
 
@@ -49,26 +49,15 @@ class Tracker:
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
-            # points = JulierSigmaPoints(state_dimensionality)
             points = MerweScaledSigmaPoints(state_dimensionality, 1e-3, 2, 0)
         )
 
-        azi, alt = map(np.deg2rad, mount_initial_aim) # in radians now
+        azi, alt = mount_initial_aim # in radians now
 
         start_vector = np.array([0,1,0])
         # rotate by azi and alt degrees
-        rot_azi_mat = np.array([
-            [np.cos(azi),0,np.sin(azi)],
-            [0,1,0],
-            [-np.sin(azi),0,np.cos(azi)]
-        ])
-
-        rot_alt_mat = np.array([
-            [1,0,0],
-            [0,np.cos(alt),np.sin(alt)],
-            [0,-np.sin(alt),np.cos(alt)]
-        ])
-
+        rot_azi_mat = azi_rot_mat(azi)
+        rot_alt_mat = alt_rot_mat(alt)
 
         self.rocket_initial_position = rot_alt_mat @ rot_azi_mat @ start_vector * rocket_initial_distance
         self.filter.x  = np.zeros(state_dimensionality)
