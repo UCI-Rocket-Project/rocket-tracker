@@ -89,7 +89,11 @@ class Sim(ShowBase):
         self.rocket_model.setPos(x,y,z)
         if self.prev_rocket_position is not None:
             quat = Quat()
-            lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
+            # if difference is low enough, just look straight up. Without this, it flips around at the start of the flight
+            if np.linalg.norm(rocket_pos-self.prev_rocket_position) < 1e-1:
+                lookAt(quat, Vec3(0,1,0),Vec3(0,0,0))
+            else:
+                lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
             self.rocket_model.setQuat(quat)
         gt_logger.add_scalar("Rocket Position X", x, task.time*100)
         gt_logger.add_scalar("Rocket Position Y", y, task.time*100)
