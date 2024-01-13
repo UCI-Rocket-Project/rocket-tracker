@@ -17,6 +17,7 @@ from pymap3d import geodetic2enu, enu2geodetic
 
 os.makedirs('runs', exist_ok=True)
 num_prev_runs = len(os.listdir('runs')) 
+print(f"Run number {num_prev_runs}")
 gt_logger = SummaryWriter(f'runs/{num_prev_runs}/ground_truth')
 estimate_logger = SummaryWriter(f'runs/{num_prev_runs}/prediction')
 T = SimTelescope(azimuth=0, altitude=0)
@@ -64,7 +65,15 @@ class Sim(ShowBase):
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         tracker_pos_gps = enu2geodetic(0,-self.camera_dist,0, telem.gps_lat, telem.gps_lng, telem.altimeter_reading)
-        self.tracker = Tracker(self.camera_res, self.cam_focal_len_pixels, estimate_logger, T, (0,0), self.camera_dist, tracker_pos_gps[:-1]) # exclude altitude from position
+        self.tracker = Tracker(self.camera_res, 
+                                self.cam_focal_len_pixels, 
+                                estimate_logger, 
+                                T, 
+                                (0,0), 
+                                self.camera_dist, 
+                                tracker_pos_gps[:-1], # exclude altitude from position
+                                use_telem = True
+                                ) 
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -75,7 +84,6 @@ class Sim(ShowBase):
         rocket_pos = self.rocket.get_position(task.time)
         rocket_vel = self.rocket.get_velocity(task.time)
         rocket_accel = self.rocket.get_acceleration(task.time)
-        telem = self.rocket.get_telemetry(task.time)
         
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)

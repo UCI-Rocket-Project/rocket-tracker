@@ -22,7 +22,8 @@ class Tracker:
                 telescope: SimTelescope, 
                 mount_initial_aim: tuple[float,float],
                 rocket_initial_distance: float,
-                mount_initial_gps: tuple[float,float]):
+                mount_initial_gps: tuple[float,float],
+                use_telem = False):
         '''
         `camera_res`: camera resolution (w,h) in pixels
         `focal_len`: focal length in pixels
@@ -44,7 +45,7 @@ class Tracker:
 
         self.filter = UnscentedKalmanFilter(
             dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 2, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
+            dim_z = 8 if use_telem else 2, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
             dt = 1/30,
             hx = self._measurement_function,
             fx = self._rocket_state_transition,
@@ -54,7 +55,7 @@ class Tracker:
 
         azi, alt = map(np.deg2rad, mount_initial_aim) # in radians now
 
-        start_vector = np.array([0,0,1])
+        start_vector = np.array([0,1,0])
         # rotate by azi and alt degrees
         rot_azi_mat = np.array([
             [np.cos(azi),0,np.sin(azi)],
@@ -79,6 +80,7 @@ class Tracker:
         self.target_feature: np.ndarray = None # feature description 
         self.initial_feature_size = None
         self.SCALE_FACTOR = 4
+        self.use_telem = use_telem
 
     def _rocket_state_transition(self, state: np.ndarray, dt):
         '''
@@ -102,6 +104,12 @@ class Tracker:
         ])
 
     def _measurement_function(self, state: np.ndarray):
+        '''
+        Returns alt, azi
+        or alt,azi, alt,lng,height, accel_x, accel_y, accel_z
+
+        depending on whether or not we're using telemetry
+        '''
         x,y,z = state[0],state[3],state[6]
         ax, ay, az = state[2], state[5], state[8]
         alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
@@ -110,14 +118,17 @@ class Tracker:
         initial_dist = np.linalg.norm(self.rocket_initial_position)
         new_dist = np.linalg.norm([x,y,z])
         scale = new_dist/initial_dist
-        
-        return np.array([
-            alt,
-            azi,
-            # scale,
-            # lat,lng,height,
-            # ax,ay,az
-        ])
+
+        if self.use_telem: 
+            return np.array([
+                alt,
+                azi,
+                # scale,
+                lat,lng,height,
+                ax,ay,az
+            ])
+        else:
+            return np.array([alt,azi])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
         '''
@@ -188,6 +199,7 @@ class Tracker:
         `pos_estimate`: estimated position of rocket relative to the mount, where the mount 
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
+
         altitude_from_image_processing, azimuth_from_image_processing, img_scale, pixel_pos = self.estimate_az_alt_scale_from_img(img, global_step, ground_truth.pixel_coordinates if ground_truth else None)
 
         using_image_processing = altitude_from_image_processing is not None
@@ -201,17 +213,23 @@ class Tracker:
         # TODO: set measurement noise really high for any missing measurements
         np.set_printoptions(suppress=True, precision=5)
         # if using_image_processing:
-        measurement_vector = np.array([
-            altitude_from_image_processing,
-            azimuth_from_image_processing, 
-            # img_scale,
-            # telem_measurements.gps_lat,
-            # telem_measurements.gps_lng,
-            # telem_measurements.altimeter_reading,
-            # telem_measurements.accel_x,
-            # telem_measurements.accel_y,
-            # telem_measurements.accel_z,
-        ])
+        if self.use_telem:
+            measurement_vector = np.array([
+                altitude_from_image_processing,
+                azimuth_from_image_processing, 
+                # img_scale,
+                telem_measurements.gps_lat,
+                telem_measurements.gps_lng,
+                telem_measurements.altimeter_reading,
+                telem_measurements.accel_x,
+                telem_measurements.accel_y,
+                telem_measurements.accel_z,
+            ])
+        else:
+            measurement_vector = np.array([
+                altitude_from_image_processing,
+                azimuth_from_image_processing, 
+            ])
 
         # print(measurement_vector)
         # print(self._measurement_function(self.filter.x))
