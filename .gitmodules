@@ -1,0 +1,3 @@
+[submodule "zwo"]
+	path = zwo
+	url = https://github.com/seeing-things/zwo.git
