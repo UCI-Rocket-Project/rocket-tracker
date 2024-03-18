@@ -7,6 +7,8 @@ import numpy as np
 import cv2 as cv
 from time import time, strftime
 
+from zwo_eaf import EAF, getNumEAFs, getEAFID
+
 # outside rocket lab garage
 MOUNT_GPS_LAT = 33.6449307
 MOUNT_GPS_LNG = -117.8413249
@@ -114,6 +116,7 @@ def main():
             handle_button_press(event.button) 
 
 
+    print("??")
     img = cam.take_picture()
     
     if tracking:
@@ -122,6 +125,7 @@ def main():
             pixel_pos = ret_val
     else:
         joystick_control()
+    
 
     # # draw current position
     cv.rectangle(img, (10,50), (200,0), (0,0,0), -1)
@@ -173,13 +177,25 @@ def main():
     
     return True
 
+if __name__ == '__main__':
+    eaf_count = getNumEAFs()
 
-# main loop
-while True:
-    try:
-        if not main():
+    print(f"Found {eaf_count} EAFs")
+
+    if eaf_count < 1:
+        print("No EAFs found")
+        exit()
+
+    eaf_id = getEAFID(0)
+
+    eaf = EAF(eaf_id)
+
+    # main loop
+    while True:
+        try:
+            if not main():
+                break
+        except Exception as e:
+            t.stop()
+            print(e)
             break
-    except Exception as e:
-        t.stop()
-        print(e)
-        break

@@ -7,6 +7,7 @@ import cv2 as cv
 from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
 from .utils import GroundTruthTrackingData, TelemetryData, azi_rot_mat, alt_rot_mat
 from pymap3d import enu2geodetic
+from zwo_eaf import EAF
 from dataclasses import dataclass
 
 @dataclass
@@ -20,6 +21,7 @@ class Tracker:
                 focal_len: int, 
                 logger: SummaryWriter, 
                 telescope: SimTelescope, 
+                focuser: EAF,
                 mount_initial_aim: tuple[float,float],
                 rocket_initial_distance: float,
                 mount_initial_gps: tuple[float,float],
@@ -70,6 +72,11 @@ class Tracker:
         self.initial_feature_size = None
         self.SCALE_FACTOR = 4
         self.use_telem = use_telem
+
+        self.focuser = focuser
+        self.focuser_zero_distance = 300 # This is the total length of spacers we're using between the scope and camera, in mm
+        self.focuser_focal_length = 714
+
 
     def _rocket_state_transition(self, state: np.ndarray, dt):
         '''
@@ -251,6 +258,12 @@ class Tracker:
         else:
             alt_setpoint, az_setpoint, *_ = self._measurement_function(self.filter.x)
         # az_setpoint, alt_setpoint = ground_truth.az_alt 
+
+        # estimate distance to target
+        cur_state = self.filter.x
+        dist = np.linalg.norm(cur_state[:3])
+        focuser_position = self.focuser_focal_length*(1/self.focal_len)*dist+self.focuser_zero_distance
+        self.focuser.move_to(focuser_position)
 
         t_azi, t_alt = self.telescope.read_position()
 

@@ -1,3 +1,6 @@
 [submodule "zwo"]
 	path = zwo
 	url = https://github.com/seeing-things/zwo.git
+[submodule "py-zwo-eaf"]
+	path = py-zwo-eaf
+	url = https://github.com/EricPedley/py-zwo-eaf.git
