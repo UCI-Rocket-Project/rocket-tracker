@@ -4,7 +4,7 @@ from .sim_telescope import SimTelescope
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
-from filterpy.kalman import UnscentedKalmanFilter, JulierSigmaPoints, MerweScaledSigmaPoints
+from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 from .utils import GroundTruthTrackingData, TelemetryData, azi_rot_mat, alt_rot_mat
 from pymap3d import enu2geodetic
 from zwo_eaf import EAF
