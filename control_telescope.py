@@ -1,6 +1,6 @@
 import pygame
 from telescope import Telescope
-from camera import Camera
+from zwo_asi import ASICamera
 from simulation.tracker import Tracker
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
@@ -16,7 +16,8 @@ MOUNT_GPS_LNG = -117.8413249
 t = Telescope()
 # reasonable range for gain is 50-1000
 gain = 150
-cam = Camera(gain=gain)
+exposure = 1/30
+cam = ASICamera(0,gain,exposure)
 focal_length_pixels = 12.5 / 2.9e-3
 logger = SummaryWriter(f'runs/telescope_control')
 tracker = Tracker((1920, 1080), focal_length_pixels, logger, t, t.read_position(), 100, (MOUNT_GPS_LAT,MOUNT_GPS_LNG))
@@ -74,7 +75,7 @@ video = None
 tracking = False
 
 def handle_button_press(button: int):
-    global recording, video, gain, tracking
+    global recording, video, gain, tracking, cam
     if button == BUTTON_CIRCLE:
         if not recording:
             # start recording
@@ -87,11 +88,11 @@ def handle_button_press(button: int):
     
     elif button == BUTTON_RIGHT_BUMPER:
         gain += 100
-        cam.set_gain(gain)
+        cam = ASICamera(0,gain,exposure)
     
     elif  button == BUTTON_RIGHT_TRIGGER:
         gain -= 50 
-        cam.set_gain(gain)
+        cam = ASICamera(0,gain,exposure)
 
     elif button == BUTTON_SQUARE:
         print("Tracking toggled")
@@ -117,7 +118,7 @@ def main():
 
 
     print("??")
-    img = cam.take_picture()
+    img = cam.get_frame()
     
     if tracking:
         ret_val = tracker_control(img)
