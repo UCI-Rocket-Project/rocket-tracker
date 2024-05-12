@@ -16,12 +16,17 @@ class RocketFilter:
         # angular velocities are in body frame, in rad/sec
         # thrust is the acceleration due to the engine, in m/s^2
         # z dimension is [acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, gps_x, gps_y, gps_z, altimeter]
+        # GPS is in ECEF, altimeter is in meters above sea level
 
         x_dim = 15
         z_dim = 10
         self.x = np.zeros(x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
-        self.x[6] = 1 # quaternion orientation
+        initial_point_direction = self.x[:3] / np.linalg.norm(self.x[:3])
+        initial_rot = R.align_vectors(np.array([0,0,1])[None,:], initial_point_direction[None,:])[0]
+        self.x[6:10] = initial_rot.as_quat()
+        self.x[13] = 1 # thrust
+        self.x[14] = 1 # dthrust
 
         # covariance matrices have 1 less dimension because the quaternion orientation
         # is 4 variables, but only 3 degrees of freedom
@@ -61,8 +66,10 @@ class RocketFilter:
         new_x = np.zeros_like(x)
         orientation = R.from_quat(x[6:10])
         thrust_vec = orientation.apply([0,0,1]) * x[13]
-        new_x[:3] = x[:3] + x[3:6]*dt + 0.5*x[10:13]*dt**2
-        new_x[3:6] = x[3:6] + thrust_vec*dt
+        gravity_vec = -x[:3] / np.linalg.norm(x[:3]) * 9.81
+        accel_vec = thrust_vec + gravity_vec
+        new_x[:3] = x[:3] + x[3:6]*dt + 0.5*accel_vec*dt**2
+        new_x[3:6] = x[3:6] + accel_vec*dt
         new_x[6:10] = R.as_quat(R.from_euler('xyz', x[10:13]*dt) * orientation)
         new_x[10:13] = x[10:13]
         new_x[13] = x[13] + x[14]*dt
@@ -80,9 +87,9 @@ class RocketFilter:
         w_q = self._to_quat(W[6:9])
         
         X = np.vstack([ # sigma points
-            W[:6]+np.mean(self.x[:6]),
+            W[:6]+self.x[:6,None],
             self._quat_mult(self.x[6:10], w_q),
-            W[9:14]+np.mean(self.x[10:15])
+            W[9:14]+self.x[10:15,None]
         ])
 
         X = np.apply_along_axis(self.fx, 0, X, dt)
@@ -96,9 +103,9 @@ class RocketFilter:
         # begin update step
 
         a_priori_P = 1/(2*n) * np.sum([
-            W[:,i] @ W[:,i].T
+            np.outer(W[:,i], W[:,i].T)
             for i in range(2*n)
-        ]) # using this instead of covariance of actual sigmas
+        ], axis=0) # using this instead of covariance of actual sigmas
 
         Z = np.apply_along_axis(self.hx, 0, X)
 
@@ -151,9 +158,9 @@ class RocketFilter:
         returns (4,n) array of quaternions
         '''
         alpha_w = np.linalg.norm(w_q, axis=0)
-        e_w = w_q / alpha_w[np.newaxis,:] # some of these will become NaN but they'll be multiplied by 0
-        # set all NaNs to 0
-        e_w[np.isnan(e_w)] = 0
+        div_vals = np.where(alpha_w == 0, 1, alpha_w) # avoid division by zero
+        # if alpha_w is zero, then the e_w values are all multiplied by sin(0) = 0 so their values dont' matter.
+        e_w = w_q / div_vals
         q_w = np.array([
             np.cos(alpha_w/2),
             e_w[0] * np.sin(alpha_w/2),
