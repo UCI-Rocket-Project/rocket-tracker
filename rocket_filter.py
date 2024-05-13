@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from scipy.linalg import cholesky
 import pymap3d as pm
+from torch.utils.tensorboard import SummaryWriter
 
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
@@ -20,20 +21,30 @@ class RocketFilter:
 
         x_dim = 15
         z_dim = 10
-        self.x = np.zeros(x_dim) # state vector
+        self.x = np.empty(x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
-        initial_point_direction = self.x[:3] / np.linalg.norm(self.x[:3])
-        initial_rot = R.align_vectors(np.array([0,0,1])[None,:], initial_point_direction[None,:])[0]
-        self.x[6:10] = initial_rot.as_quat()
+        self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
+        self.x[3:6] = np.zeros(3) # velocity
+        # initial_point_direction = self.x[:3] / np.linalg.norm(self.x[:3])
+        # initial_rot = R.align_vectors(np.array([0,0,1])[None,:], initial_point_direction[None,:])[0]
+        self.x[6:10] = R.identity().as_quat()
+        self.x[10:13] = np.zeros(3) # angular velocity
         self.x[13] = 1 # thrust
         self.x[14] = 1 # dthrust
 
         # covariance matrices have 1 less dimension because the quaternion orientation
         # is 4 variables, but only 3 degrees of freedom
         self.P = np.eye(x_dim - 1) # state covariance matrix
-        self.Q = np.eye(x_dim - 1) # process noise covariance matrix
+        process_noise_covariances = 1e-3 * np.array([
+            0.1, 0.1, 0.1, # position
+            0.1, 0.1, 0.1, # velocity
+            0.1, 0.1, 0.1, # orientation
+            0.1, 0.1, 0.1, # angular velocity
+            0.1, 0.1 # thrust and dthrust
+        ])
+        self.Q = np.diag(process_noise_covariances) # process noise covariance matrix
 
-        self.R = np.eye(z_dim) # measurement noise covariance matrix
+        self.R = 1e-3 * np.eye(z_dim) # measurement noise covariance matrix
 
 
     def hx(self, x: np.ndarray):
@@ -41,8 +52,7 @@ class RocketFilter:
         Measurement function
         '''
 
-        vec_to_earth_center = - x[:3] / np.linalg.norm(x[:3])
-        acc_vector = np.array([0,0,x[13]]) + vec_to_earth_center * 9.81
+        acc_vector = np.array([0,0,x[13]])
 
         geodetic = pm.ecef2geodetic(x[0], x[1], x[2])
 
@@ -65,8 +75,9 @@ class RocketFilter:
         '''
         new_x = np.zeros_like(x)
         orientation = R.from_quat(x[6:10])
-        thrust_vec = orientation.apply([0,0,1]) * x[13]
-        gravity_vec = -x[:3] / np.linalg.norm(x[:3]) * 9.81
+        thrust_vec = orientation.apply(self.original_direction) * x[13]
+        unit_vector_from_earth_center = x[:3] / np.linalg.norm(x[:3])
+        gravity_vec = -unit_vector_from_earth_center * 9.81
         accel_vec = thrust_vec + gravity_vec
         new_x[:3] = x[:3] + x[3:6]*dt + 0.5*accel_vec*dt**2
         new_x[3:6] = x[3:6] + accel_vec*dt
@@ -77,7 +88,10 @@ class RocketFilter:
 
         return new_x
     
-    def predict_update(self, dt: float, z: np.ndarray):
+    def predict_update(self, dt: float, z: np.ndarray, debug_logging: tuple[SummaryWriter, int] = None):
+        '''
+        debug_logging is a tuple of (SummaryWriter, int) where the int is the current iteration number
+        '''
         S = cholesky(self.P + self.Q) 
         n = S.shape[0]
 
@@ -94,7 +108,7 @@ class RocketFilter:
 
         X = np.apply_along_axis(self.fx, 0, X, dt)
 
-        self.x = np.hstack([
+        pred_x = np.hstack([
             np.mean(X[:6], axis=1),
             self._avg_quaternions(X[6:10].T),
             np.mean(X[10:15], axis=1)
@@ -118,23 +132,27 @@ class RocketFilter:
         # dimension than the state, so to use it for the Kalman gain we need to
         # convert the rotation vectors to quaternions. But, for the covariance
         # matrix, we have to use the rotation vectors.
-        P_xz_w = 1/(2*n) * np.sum([
+        P_xz = 1/(2*n) * np.sum([
             np.outer(W[:,i], (Z[:,i] - z_hat))
             for i in range(2*n)
         ], axis=0)
 
-        W_with_quats = np.vstack([W[:6], w_q, W[9:14]])
-
-        P_xz = 1/(2*n) * np.sum([
-            np.outer(W_with_quats[:, i], (Z[:,i] - z_hat))
-            for i in range(2*n)
-        ], axis=0)
 
         K = P_xz @ np.linalg.inv(P_vv)
-        K_w = P_xz_w @ np.linalg.inv(P_vv)
 
-        self.x = self.x + K @ (z - z_hat)
-        self.P = a_priori_P - K_w @ P_vv @ K_w.T
+        # this is also not mentioned in the paper, but we can't just add
+        # the quaternion updates to the state vector. We have to multiply them.
+        delta_x =  K @ (z - z_hat)
+
+        if debug_logging is not None:
+            debug_logging[0].add_scalar("z surprise", np.linalg.norm(z - z_hat), debug_logging[1])
+
+        self.x = np.hstack([
+            pred_x[:6] + delta_x[:6],
+            self._quat_mult(pred_x[6:10], self._to_quat(delta_x[6:9])),
+            pred_x[10:] + delta_x[9:]
+        ])
+        self.P = a_priori_P - K @ P_vv @ K.T
 
 
         
