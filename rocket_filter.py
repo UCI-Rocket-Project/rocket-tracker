@@ -65,8 +65,9 @@ class RocketFilter:
         '''
         State transition function
         '''
-        vel_unit = x[3:6] / np.linalg.norm(x[3:6])
-        accel = vel_unit * x[6]
+        grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
+        vel_unit = x[3:6] / np.linalg.norm(x[3:6]) if np.linalg.norm(x[3:6]) > 1 else -grav_vec / 9.81
+        accel = vel_unit * x[6] + grav_vec
         jerk = vel_unit * x[7]
         x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
         x[3:6] += accel * dt + 0.5 * jerk * dt**2

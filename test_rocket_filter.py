@@ -20,8 +20,8 @@ if __name__ == "__main__":
     pred_x = []
 
     start_time = 0
-    end_time = 13
-    samples = 50
+    end_time = 60
+    samples = 60
     dt = (end_time - start_time) / samples
     for i,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
         xyz_geodetic = test_flight.latitude(t), test_flight.longitude(t), test_flight.z(t)
@@ -66,9 +66,10 @@ if __name__ == "__main__":
         writer_pred.add_scalar("velocity/x", rocket.x[3], i)
         writer_pred.add_scalar("velocity/y", rocket.x[4], i)
         writer_pred.add_scalar("velocity/z", rocket.x[5], i)
-        writer_pred.add_scalar("acceleration/x", rocket.x[6], i)
-        writer_pred.add_scalar("acceleration/y", rocket.x[7], i)
-        writer_pred.add_scalar("acceleration/z", rocket.x[8], i)
-        writer_pred.add_scalar("jerk/x", rocket.x[9], i)
-        writer_pred.add_scalar("jerk/y", rocket.x[10], i)
-        writer_pred.add_scalar("jerk/z", rocket.x[11], i)
+        unit_v = rocket.x[3:6] / np.linalg.norm(rocket.x[3:6])
+        grav_vec = -9.81 * rocket.x[:3] / np.linalg.norm(rocket.x[:3])
+        accel = unit_v * rocket.x[6] + grav_vec
+        writer_pred.add_scalar("acceleration/x", accel[0], i)
+        writer_pred.add_scalar("acceleration/y", accel[1], i)
+        writer_pred.add_scalar("acceleration/z", accel[2], i)
+        writer_pred.add_scalar("jerk", rocket.x[7], i)
