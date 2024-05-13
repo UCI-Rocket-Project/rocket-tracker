@@ -8,7 +8,7 @@ from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
 class RocketFilter:
-    def __init__(self, pad_geodetic_location: tuple[float,float,float]):
+    def __init__(self, pad_geodetic_location: tuple[float,float,float], drag_coefficient: float = 1e-3):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
         It is used to initialize the filter state.
@@ -48,6 +48,8 @@ class RocketFilter:
         self.ukf.Q = self.Q
         self.ukf.R = self.R
 
+        self.drag_coefficient = drag_coefficient
+
 
     def hx(self, x: np.ndarray):
         '''
@@ -58,7 +60,7 @@ class RocketFilter:
 
         return np.array([
             x[0], x[1], x[2], # ECEF position
-            geodetic[2] # altitude
+            geodetic[2], # altitude,
         ])
     
     def fx(self, x: np.ndarray, dt: float):
@@ -66,9 +68,11 @@ class RocketFilter:
         State transition function
         '''
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
-        vel_unit = x[3:6] / np.linalg.norm(x[3:6]) if np.linalg.norm(x[3:6]) > 1 else -grav_vec / 9.81
-        accel = vel_unit * x[6] + grav_vec
+        vel_magnitude = np.linalg.norm(x[3:6])
+        vel_unit = x[3:6] / vel_magnitude if vel_magnitude > 1 else -grav_vec / 9.81
         jerk = vel_unit * x[7]
+        drag = -self.drag_coefficient * vel_magnitude**2 * vel_unit
+        accel = vel_unit * x[6] + grav_vec + drag
         x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
         x[3:6] += accel * dt + 0.5 * jerk * dt**2
         x[6] += x[7] * dt

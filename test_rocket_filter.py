@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     start_time = 0
     end_time = 60
-    samples = 60
+    samples = 30
     dt = (end_time - start_time) / samples
     for i,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
         xyz_geodetic = test_flight.latitude(t), test_flight.longitude(t), test_flight.z(t)
@@ -30,17 +30,23 @@ if __name__ == "__main__":
         v_enu = test_flight.vx(t), test_flight.vy(t), test_flight.vz(t)
         v_ecef = np.array(pm.enu2ecef(*v_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
 
-        accel_enu = test_flight.ax(t), test_flight.ay(t), test_flight.az(t)
+        accel_enu = np.array([test_flight.ax(t), test_flight.ay(t), test_flight.az(t)])
         accel_ecef = np.array(pm.enu2ecef(*accel_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
         orientation = R.from_quat([test_flight.e0(t), test_flight.e1(t), test_flight.e2(t), test_flight.e3(t)])
-        accel_body = orientation.apply(accel_enu)
+        # orientation.apply([0,0,1]) is the direction of the rocket in ENU
+        gravity_ecef = np.array(pm.enu2ecef(0,0,-9.81,*xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
+        accel_body = orientation.apply(accel_enu + np.array([0,0,9.81]))
+        compensated_accel = accel_body - gravity_ecef
+        accel_ecef_unit = (compensated_accel) / np.linalg.norm(compensated_accel)
+        v_ecef_unit = v_ecef / np.linalg.norm(v_ecef)
+        print(np.linalg.norm(accel_ecef))
         
 
         rocket.predict_update(
             dt,
             np.array([
                 *xyz_ecef,
-                test_flight.z(t)
+                test_flight.z(t),
             ]),
             (writer_pred, t)
         )
