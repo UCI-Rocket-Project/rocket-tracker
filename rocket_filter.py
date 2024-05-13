@@ -20,26 +20,19 @@ class RocketFilter:
         # z dimension is [acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, gps_x, gps_y, gps_z, altimeter]
         # GPS is in ECEF, altimeter is in meters above sea level
 
-        x_dim = 12 
+        x_dim = 8
         z_dim = 4
         self.x = np.empty(x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
-        self.x[6:9] = self.original_direction * 9.81 # assume initial acceleration is about 1g
-        self.x[9:12] = self.original_direction * 0.1 # assume initial jerk is 0.1g /s
+        self.x[6] = 9.81 # linear acceleration
+        self.x[7] = 1 # linear jerk
 
         # covariance matrices have 1 less dimension because the quaternion orientation
         # is 4 variables, but only 3 degrees of freedom
         self.P = np.eye(x_dim) # state covariance matrix
-        process_noise_covariances = 1e-3 * np.array([
-            0.1, 0.1, 0.1, # position
-            0.1, 0.1, 0.1, # velocity
-            0.1, 0.1, 0.1, # accel
-            0.1, 0.1, 0.1, # jerk
-        ])
-        self.Q = np.diag(process_noise_covariances) # process noise covariance matrix
-
+        self.Q = 0.1* np.eye(x_dim) # process noise covariance matrix
         self.R = 1e-3 * np.eye(z_dim) # measurement noise covariance matrix
 
         self.ukf = UnscentedKalmanFilter(
@@ -72,9 +65,12 @@ class RocketFilter:
         '''
         State transition function
         '''
-        x[0:3] += x[3:6] * dt + 0.5 * x[6:9] * dt**2 + 1/6 * x[9:12] * dt**3
-        x[3:6] += x[6:9] * dt + 0.5 * x[9:12] * dt**2
-        x[6:9] += x[9:12] * dt
+        vel_unit = x[3:6] / np.linalg.norm(x[3:6])
+        accel = vel_unit * x[6]
+        jerk = vel_unit * x[7]
+        x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
+        x[3:6] += accel * dt + 0.5 * jerk * dt**2
+        x[6] += x[7] * dt
         return x
     
     def predict_update(self, dt: float, z: np.ndarray, debug_logging: tuple[SummaryWriter, int] = None):
