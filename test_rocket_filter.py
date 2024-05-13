@@ -31,6 +31,7 @@ if __name__ == "__main__":
         v_ecef = np.array(pm.enu2ecef(*v_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
 
         accel_enu = test_flight.ax(t), test_flight.ay(t), test_flight.az(t)
+        accel_ecef = np.array(pm.enu2ecef(*accel_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
         orientation = R.from_quat([test_flight.e0(t), test_flight.e1(t), test_flight.e2(t), test_flight.e3(t)])
         accel_body = orientation.apply(accel_enu)
         
@@ -38,10 +39,6 @@ if __name__ == "__main__":
         rocket.predict_update(
             dt,
             np.array([
-                *accel_body,
-                test_flight.w1(t),
-                test_flight.w2(t),
-                test_flight.w3(t),
                 *xyz_ecef,
                 test_flight.z(t)
             ]),
@@ -57,13 +54,9 @@ if __name__ == "__main__":
         writer_gt.add_scalar("vx", v_ecef[0], i)
         writer_gt.add_scalar("vy", v_ecef[1], i)
         writer_gt.add_scalar("vz", v_ecef[2], i)
-        writer_gt.add_scalar("q0", test_flight.e0(t), i)
-        writer_gt.add_scalar("q1", test_flight.e1(t), i)
-        writer_gt.add_scalar("q2", test_flight.e2(t), i)
-        writer_gt.add_scalar("q3", test_flight.e3(t), i)
-        writer_gt.add_scalar("wx", test_flight.w1(t), i)
-        writer_gt.add_scalar("wy", test_flight.w2(t), i)
-        writer_gt.add_scalar("wz", test_flight.w3(t), i)
+        writer_gt.add_scalar("ax", accel_ecef[0], i)
+        writer_gt.add_scalar("ay", accel_ecef[1], i)
+        writer_gt.add_scalar("az", accel_ecef[2], i)
 
 
 
@@ -73,11 +66,9 @@ if __name__ == "__main__":
         writer_pred.add_scalar("vx", rocket.x[3], i)
         writer_pred.add_scalar("vy", rocket.x[4], i)
         writer_pred.add_scalar("vz", rocket.x[5], i)
-        writer_pred.add_scalar("q0", rocket.x[6], i)
-        writer_pred.add_scalar("q1", rocket.x[7], i)
-        writer_pred.add_scalar("q2", rocket.x[8], i)
-        writer_pred.add_scalar("q3", rocket.x[9], i)
-        writer_pred.add_scalar("wx", rocket.x[10], i)
-        writer_pred.add_scalar("wy", rocket.x[11], i)
-        writer_pred.add_scalar("wz", rocket.x[12], i)
-        writer_pred.add_scalar("thrust", rocket.x[13], i)
+        writer_pred.add_scalar("ax", accel_body[0], i)
+        writer_pred.add_scalar("ay", accel_body[1], i)
+        writer_pred.add_scalar("az", accel_body[2], i)
+        writer_pred.add_scalar("jerk_x", rocket.x[9], i)
+        writer_pred.add_scalar("jerk_y", rocket.x[10], i)
+        writer_pred.add_scalar("jerk_z", rocket.x[11], i)
