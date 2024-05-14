@@ -29,11 +29,19 @@ class RocketFilter:
         self.x[6] = 9.81 # linear acceleration
         self.x[7] = 1 # linear jerk
 
-        # covariance matrices have 1 less dimension because the quaternion orientation
-        # is 4 variables, but only 3 degrees of freedom
-        self.P = np.eye(x_dim) # state covariance matrix
-        self.Q = 0.1* np.eye(x_dim) # process noise covariance matrix
-        self.R = 1e-3 * np.eye(z_dim) # measurement noise covariance matrix
+        state_variances = np.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01, 5, 2])
+        # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
+        # and jerk are less certain
+        self.P = np.diag(state_variances) # state covariance matrix
+
+
+        # assume position and velocity have little process noise, but acceleration and jerk have more
+        process_variances = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1])
+        self.Q = np.diag(process_variances) # process noise covariance matrix
+
+        # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
+        measurement_variances = np.array([100,100,100,1])
+        self.R = np.diag(measurement_variances) # measurement noise covariance matrix
 
         self.ukf = UnscentedKalmanFilter(
             dim_x=x_dim,

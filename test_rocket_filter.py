@@ -39,14 +39,15 @@ if __name__ == "__main__":
         compensated_accel = accel_body - gravity_ecef
         accel_ecef_unit = (compensated_accel) / np.linalg.norm(compensated_accel)
         v_ecef_unit = v_ecef / np.linalg.norm(v_ecef)
-        print(np.linalg.norm(accel_ecef))
         
+        pos_noise = np.random.normal(0, 100, 3)
+        altimeter_noise = np.random.normal(0, 1)
 
         rocket.predict_update(
             dt,
             np.array([
-                *xyz_ecef,
-                test_flight.z(t),
+                *(xyz_ecef + pos_noise),
+                test_flight.z(t)+altimeter_noise,
             ]),
             (writer_pred, t)
         )
