@@ -8,10 +8,17 @@ from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
 class RocketFilter:
-    def __init__(self, pad_geodetic_location: tuple[float,float,float], drag_coefficient: float = 1e-3):
+    def __init__(self, 
+                 pad_geodetic_location: tuple[float,float,float], 
+                 cam_geodetic_location: tuple[float,float,float],
+                 initial_bearing: tuple[float,float],
+                 drag_coefficient: float = 1e-3):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
         It is used to initialize the filter state.
+        `cam_geodetic_location` is a tuple of (latitude, longitude, altitude) of the camera.
+        `initial_bearing` is a tuple of (azimuth, elevation) of the camera when it is pointed at the rocket while it's on the pad.
+        This assumes the camera is exactly level so that azimuth doesn't change the vertical component of the bearing vector.
         '''
         # x dimension is [x,y,z,vx,vy,vz,q0,q1,q2,q3,wx,wy,wz,thrust,dthrust]
         # xyz are in ECEF, velocities are in meters/sec
@@ -19,6 +26,13 @@ class RocketFilter:
         # thrust is the acceleration due to the engine, in m/s^2
         # z dimension is [acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, gps_x, gps_y, gps_z, altimeter]
         # GPS is in ECEF, altimeter is in meters above sea level
+
+        self.cam_geodetic_location = cam_geodetic_location
+        self.pad_geodetic_location = pad_geodetic_location
+        self.initial_bearing = initial_bearing
+        self.drag_coefficient = drag_coefficient
+
+        self.last_update_time = 0
 
         x_dim = 8
         z_dim = 4
@@ -40,28 +54,58 @@ class RocketFilter:
         self.Q = np.diag(process_variances) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        measurement_variances = np.array([100,100,100,1])
-        self.R = np.diag(measurement_variances) # measurement noise covariance matrix
+        telem_measurement_variances = np.array([100,100,100,1])
+        self.R_telem = np.diag(telem_measurement_variances) # measurement noise covariance matrix
 
-        self.ukf = UnscentedKalmanFilter(
+        bearing_measurement_variances = np.array([0.01, 0.01])
+        self.R_bearing = np.diag(bearing_measurement_variances) # measurement noise covariance matrix
+
+
+        self.telem_ukf = UnscentedKalmanFilter(
             dim_x=x_dim,
             dim_z=z_dim,
             dt=1,
-            hx=self.hx,
+            hx=self.hx_telem,
             fx=self.fx,
             points=MerweScaledSigmaPoints(n=x_dim, alpha=1e-3, beta=2, kappa=0)
         )
-        self.ukf.x = self.x
-        self.ukf.P = self.P
-        self.ukf.Q = self.Q
-        self.ukf.R = self.R
+        self.telem_ukf.x = self.x
+        self.telem_ukf.P = self.P
+        self.telem_ukf.Q = self.Q
+        self.telem_ukf.R = self.R_telem
 
-        self.drag_coefficient = drag_coefficient
+        self.bearing_ukf = UnscentedKalmanFilter(
+            dim_x=x_dim,
+            dim_z=2,
+            dt=1,
+            hx=self.hx_bearing,
+            fx=self.fx,
+            points=MerweScaledSigmaPoints(n=x_dim, alpha=1e-3, beta=2, kappa=0)
+        )
+        self.bearing_ukf.x = self.x
+        self.bearing_ukf.P = self.P
+        self.bearing_ukf.Q = self.Q
+        self.bearing_ukf.R = self.R_bearing
 
 
-    def hx(self, x: np.ndarray):
+    def hx_bearing(self, x: np.ndarray):
         '''
-        Measurement function
+        Measurement function for camera bearing measurements. In future versions,
+        we could also add measurements of the rocket's apparent size and orientation.
+        '''
+
+        rocket_pos_enu = pm.ecef2enu(*self.x[:3], *self.cam_geodetic_location)
+        azimuth_bearing = np.arctan2(rocket_pos_enu[1], rocket_pos_enu[0])
+        elevation_bearing = np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2]))
+
+        return np.array([
+            azimuth_bearing + self.initial_bearing[0],
+            elevation_bearing + self.initial_bearing[1],
+        ])
+
+    def hx_telem(self, x: np.ndarray):
+        '''
+        Measurement function for telemetry measurements
         '''
 
         geodetic = pm.ecef2geodetic(x[0], x[1], x[2])
@@ -85,15 +129,32 @@ class RocketFilter:
         x[3:6] += accel * dt + 0.5 * jerk * dt**2
         x[6] += x[7] * dt
         return x
+
+    def predict_update_bearing(self, time_since_first_update: float, z: np.ndarray):
+        '''
+        Predict and update the filter with a bearing measurement
+        '''
+        dt = time_since_first_update - self.last_update_time
+        self.bearing_ukf.predict(dt)
+        self.last_update_time = time_since_first_update
+        self.bearing_ukf.update(z)
+        self.x = self.bearing_ukf.x
+        self.P = self.bearing_ukf.P
+        self.telem_ukf.x = self.bearing_ukf.x
+        self.telem_ukf.P = self.bearing_ukf.P
     
-    def predict_update(self, dt: float, z: np.ndarray, debug_logging: tuple[SummaryWriter, int] = None):
+    def predict_update_telem(self, time_since_first_update: float, z: np.ndarray):
         '''
         debug_logging is a tuple of (SummaryWriter, int) where the int is the current iteration number
         '''
-        self.ukf.predict(dt)
-        self.ukf.update(z)
-        self.x = self.ukf.x
-        self.P = self.ukf.P
+        dt = time_since_first_update - self.last_update_time
+        self.last_update_time = time_since_first_update
+        self.telem_ukf.predict(dt)
+        self.telem_ukf.update(z)
+        self.x = self.telem_ukf.x
+        self.P = self.telem_ukf.P
+        self.bearing_ukf.x = self.telem_ukf.x
+        self.bearing_ukf.P = self.telem_ukf.P
                 
     def _quat_mult(self, q1: np.ndarray, q2: np.ndarray):
         '''

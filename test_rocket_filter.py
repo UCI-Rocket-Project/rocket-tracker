@@ -8,10 +8,16 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 
 if __name__ == "__main__":
-    pad_geodetic_pos = np.array([35.35, -117.81, 620])
+    pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
+    cam_geodetic_location = np.array([35.353056, 117.811944, 620])
     writer_gt = SummaryWriter(f'runs/rocket_filter/true')
     writer_pred = SummaryWriter(f'runs/rocket_filter/pred')
-    rocket = RocketFilter(pad_geodetic_pos)
+
+
+    pad_enu_pos = pm.geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
+    azimuth = np.arctan2(pad_enu_pos[1], pad_enu_pos[0])
+    elevation = np.arctan2(pad_enu_pos[2], np.linalg.norm(pad_enu_pos[:2]))
+    rocket = RocketFilter(pad_geodetic_pos, cam_geodetic_location, (azimuth, elevation))
 
     start_geodetic = test_flight.latitude(0), test_flight.longitude(0), test_flight.z(0)
     start_ecef = pm.geodetic2ecef(*start_geodetic)
@@ -43,13 +49,12 @@ if __name__ == "__main__":
         pos_noise = np.random.normal(0, 100, 3)
         altimeter_noise = np.random.normal(0, 1)
 
-        rocket.predict_update(
-            dt,
+        rocket.predict_update_telem(
+            t,
             np.array([
                 *(xyz_ecef + pos_noise),
                 test_flight.z(t)+altimeter_noise,
-            ]),
-            (writer_pred, t)
+            ])
         )
 
 
