@@ -12,7 +12,8 @@ class RocketFilter:
                  pad_geodetic_location: tuple[float,float,float], 
                  cam_geodetic_location: tuple[float,float,float],
                  initial_bearing: tuple[float,float],
-                 drag_coefficient: float = 1e-3):
+                 drag_coefficient: float = 1e-3,
+                 writer: SummaryWriter = None):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
         It is used to initialize the filter state.
@@ -27,10 +28,11 @@ class RocketFilter:
         # z dimension is [acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, gps_x, gps_y, gps_z, altimeter]
         # GPS is in ECEF, altimeter is in meters above sea level
 
-        self.cam_geodetic_location = cam_geodetic_location
         self.pad_geodetic_location = pad_geodetic_location
+        self.cam_geodetic_location = cam_geodetic_location
         self.initial_bearing = initial_bearing
         self.drag_coefficient = drag_coefficient
+        self.writer = writer
 
         self.last_update_time = 0
 
@@ -50,14 +52,14 @@ class RocketFilter:
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        process_variances = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1, 1])
+        process_variances = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1])
         self.Q = np.diag(process_variances) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
         telem_measurement_variances = np.array([100,100,100,1])
         self.R_telem = np.diag(telem_measurement_variances) # measurement noise covariance matrix
 
-        bearing_measurement_variances = np.array([0.01, 0.01])
+        bearing_measurement_variances = np.array([1, 1])
         self.R_bearing = np.diag(bearing_measurement_variances) # measurement noise covariance matrix
 
 
@@ -94,13 +96,14 @@ class RocketFilter:
         we could also add measurements of the rocket's apparent size and orientation.
         '''
 
-        rocket_pos_enu = pm.ecef2enu(*self.x[:3], *self.cam_geodetic_location)
+        rocket_pos_enu = pm.ecef2enu(*x[:3], *self.cam_geodetic_location)
         azimuth_bearing = np.arctan2(rocket_pos_enu[1], rocket_pos_enu[0])
         elevation_bearing = np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2]))
+        
 
         return np.array([
-            azimuth_bearing + self.initial_bearing[0],
-            elevation_bearing + self.initial_bearing[1],
+            azimuth_bearing,# + self.initial_bearing[0],
+            elevation_bearing# + self.initial_bearing[1],
         ])
 
     def hx_telem(self, x: np.ndarray):
