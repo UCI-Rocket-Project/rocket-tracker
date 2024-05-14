@@ -13,7 +13,9 @@ from rocketpy import (
 ## Environment
 date_info = (2023, 4, 29, 23)  # Launch Date, Hour given in UTC time
 
-EnvGFS = Environment(date=date_info, latitude=35.35, longitude=-117.81, elevation=620, datum='NAD83')
+geodetic = [35.347104, -117.808953, 620]
+
+EnvGFS = Environment(date=date_info, latitude=geodetic[0], longitude=geodetic[1], elevation=geodetic[2], datum='NAD83')
 EnvGFS.set_atmospheric_model(type="Windy", file="GFS")
 
 EnvTrue = EnvGFS # set which env to use
