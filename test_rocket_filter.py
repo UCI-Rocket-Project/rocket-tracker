@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
-    cam_geodetic_location = np.array([35.353056, 117.811944, 620])
+    cam_geodetic_location = np.array([35.353056, -117.811944, 620])
     writer_gt = SummaryWriter(f'runs/rocket_filter/true')
     writer_pred = SummaryWriter(f'runs/rocket_filter/pred')
 
@@ -49,13 +49,18 @@ if __name__ == "__main__":
         pos_noise = np.random.normal(0, 100, 3)
         altimeter_noise = np.random.normal(0, 1)
 
-        rocket.predict_update_telem(
-            t,
-            np.array([
-                *(xyz_ecef + pos_noise),
-                test_flight.z(t)+altimeter_noise,
-            ])
-        )
+        rocket_enu_pos = pm.ecef2enu(*rocket.x[:3], *pad_geodetic_pos)
+        azimuth = np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0])
+        elevation = np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2]))
+        rocket.predict_update_bearing(t, np.array([azimuth, elevation]))
+
+        # rocket.predict_update_telem(
+        #     t,
+        #     np.array([
+        #         *(xyz_ecef + pos_noise),
+        #         test_flight.z(t)+altimeter_noise,
+        #     ])
+        # )
 
 
         true_x.append(xyz_ecef)
