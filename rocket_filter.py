@@ -12,7 +12,7 @@ class RocketFilter:
                  pad_geodetic_location: tuple[float,float,float], 
                  cam_geodetic_location: tuple[float,float,float],
                  initial_bearing: tuple[float,float],
-                 drag_coefficient: float = 1e-3,
+                 drag_coefficient: float = 5e-4,
                  writer: SummaryWriter = None):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
@@ -42,7 +42,7 @@ class RocketFilter:
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
-        self.x[6] = 9.81 # linear acceleration
+        self.x[6] = 30 # linear acceleration
         self.x[7] = 1 # linear jerk
 
         state_variances = np.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01, 5, 2])
@@ -59,7 +59,7 @@ class RocketFilter:
         telem_measurement_variances = np.array([100,100,100,1])
         self.R_telem = np.diag(telem_measurement_variances) # measurement noise covariance matrix
 
-        bearing_measurement_variances = np.array([1, 1])
+        bearing_measurement_variances = np.array([1e-6, 1e-6])
         self.R_bearing = np.diag(bearing_measurement_variances) # measurement noise covariance matrix
 
 
@@ -88,6 +88,8 @@ class RocketFilter:
         self.bearing_ukf.P = self.P
         self.bearing_ukf.Q = self.Q
         self.bearing_ukf.R = self.R_bearing
+        
+        self.flight_time = 0
 
 
     def hx_bearing(self, x: np.ndarray):
@@ -124,10 +126,14 @@ class RocketFilter:
         '''
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
-        vel_unit = x[3:6] / vel_magnitude if vel_magnitude > 1 else -grav_vec / 9.81
-        jerk = vel_unit * x[7]
-        drag = -self.drag_coefficient * vel_magnitude**2 * vel_unit
-        accel = vel_unit * x[6] + grav_vec + drag
+        thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 1 else -grav_vec / 9.81
+        jerk = thrust_direction * x[7]
+        drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
+        if self.flight_time > 15:
+            accel = grav_vec+drag
+        else:
+            accel = thrust_direction * x[6] + grav_vec + drag
+            jerk = 0
         x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
         x[3:6] += accel * dt + 0.5 * jerk * dt**2
         x[6] += x[7] * dt
@@ -138,6 +144,7 @@ class RocketFilter:
         Predict and update the filter with a bearing measurement
         '''
         dt = time_since_first_update - self.last_update_time
+        self.flight_time = time_since_first_update
         self.bearing_ukf.predict(dt)
         self.last_update_time = time_since_first_update
         self.bearing_ukf.update(z)
@@ -151,6 +158,7 @@ class RocketFilter:
         debug_logging is a tuple of (SummaryWriter, int) where the int is the current iteration number
         '''
         dt = time_since_first_update - self.last_update_time
+        self.flight_time = time_since_first_update
         self.last_update_time = time_since_first_update
         self.telem_ukf.predict(dt)
         self.telem_ukf.update(z)

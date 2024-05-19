@@ -25,15 +25,16 @@ if __name__ == "__main__":
     )
 
     start_geodetic = test_flight.latitude(0), test_flight.longitude(0), test_flight.z(0)
+    print(start_geodetic)
     start_ecef = pm.geodetic2ecef(*start_geodetic)
-
-    true_x = []
-    pred_x = []
 
     start_time = 0
     end_time = 60
-    samples = 30
+    samples = 120
     dt = (end_time - start_time) / samples
+    telemetry_period = 1
+    last_telem = start_time
+    err = []
     for i,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
         xyz_geodetic = test_flight.latitude(t), test_flight.longitude(t), test_flight.z(t)
         xyz_ecef = pm.geodetic2ecef(*xyz_geodetic)
@@ -49,7 +50,6 @@ if __name__ == "__main__":
         accel_body = orientation.apply(accel_enu + np.array([0,0,9.81]))
         compensated_accel = accel_body - gravity_ecef
         accel_ecef_unit = (compensated_accel) / np.linalg.norm(compensated_accel)
-        v_ecef_unit = v_ecef / np.linalg.norm(v_ecef)
         
         pos_noise = np.random.normal(0, 100, 3)
         altimeter_noise = np.random.normal(0, 1)
@@ -57,47 +57,58 @@ if __name__ == "__main__":
         rocket_enu_pos = pm.ecef2enu(*xyz_ecef, *cam_geodetic_location)
         azimuth = np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0])
         elevation = np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2]))
-        filter.predict_update_bearing(t, np.array([azimuth, elevation]))
 
-
-        # filter.predict_update_telem(
-        #     t,
-        #     np.array([
-        #         *(xyz_ecef + pos_noise),
-        #         test_flight.z(t)+altimeter_noise,
-        #     ])
-        # )
-
-
-        true_x.append(xyz_ecef)
-        pred_x.append(filter.x[:3])
-        writer_gt.add_scalar("ecef offset/x", xyz_ecef[0] - start_ecef[0], i)
-        writer_gt.add_scalar("ecef offset/y", xyz_ecef[1] - start_ecef[1], i)
-        writer_gt.add_scalar("ecef offset/z", xyz_ecef[2] - start_ecef[2], i)
-        writer_gt.add_scalar("velocity/x", v_ecef[0], i)
-        writer_gt.add_scalar("velocity/y", v_ecef[1], i)
-        writer_gt.add_scalar("velocity/z", v_ecef[2], i)
-        writer_gt.add_scalar("acceleration/x", accel_ecef[0], i)
-        writer_gt.add_scalar("acceleration/y", accel_ecef[1], i)
-        writer_gt.add_scalar("acceleration/z", accel_ecef[2], i)
+        xyz_enu = pm.geodetic2enu(*xyz_geodetic, *start_geodetic)
+        writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
+        writer_gt.add_scalar("enu position/y", xyz_enu[1], i)
+        writer_gt.add_scalar("enu position/z", xyz_enu[2], i)
+        writer_gt.add_scalar("enu velocity/x", v_enu[0], i)
+        writer_gt.add_scalar("enu velocity/y", v_enu[1], i)
+        writer_gt.add_scalar("enu velocity/z", v_enu[2], i)
+        writer_gt.add_scalar("enu acceleration/x", accel_enu[0], i)
+        writer_gt.add_scalar("enu acceleration/y", accel_enu[1], i)
+        writer_gt.add_scalar("enu acceleration/z", accel_enu[2], i)
         writer_gt.add_scalar("bearing/azimuth", azimuth, i)
         writer_gt.add_scalar("bearing/elevation", elevation, i)
 
 
+        pred_ecef = filter.x[:3]
+        pred_enu = pm.ecef2enu(*pred_ecef, *start_geodetic)
 
-        writer_pred.add_scalar("ecef offset/x", filter.x[0] - start_ecef[0], i)
-        writer_pred.add_scalar("ecef offset/y", filter.x[1] - start_ecef[1], i)
-        writer_pred.add_scalar("ecef offset/z", filter.x[2] - start_ecef[2], i)
-        writer_pred.add_scalar("velocity/x", filter.x[3], i)
-        writer_pred.add_scalar("velocity/y", filter.x[4], i)
-        writer_pred.add_scalar("velocity/z", filter.x[5], i)
-        unit_v = filter.x[3:6] / np.linalg.norm(filter.x[3:6])
+        pred_vel_ecef = filter.x[3:6]
+        pred_vel_enu = pm.ecef2enu(*(pred_vel_ecef+start_ecef), *start_geodetic)
+
+        writer_pred.add_scalar("enu position/x", pred_enu[0], i)
+        writer_pred.add_scalar("enu position/y", pred_enu[1], i)
+        writer_pred.add_scalar("enu position/z", pred_enu[2], i)
+        writer_pred.add_scalar("enu velocity/x", pred_vel_enu[0], i)
+        writer_pred.add_scalar("enu velocity/y", pred_vel_enu[1], i)
+        writer_pred.add_scalar("enu velocity/z", pred_vel_enu[2], i)
         grav_vec = -9.81 * filter.x[:3] / np.linalg.norm(filter.x[:3])
-        accel = unit_v * filter.x[6] + grav_vec
-        writer_pred.add_scalar("acceleration/x", accel[0], i)
-        writer_pred.add_scalar("acceleration/y", accel[1], i)
-        writer_pred.add_scalar("acceleration/z", accel[2], i)
+        unit_v = filter.x[3:6] / np.linalg.norm(filter.x[3:6]) if np.linalg.norm(filter.x[3:6]) > 1 else -grav_vec / 9.81
+        accel_ecef = unit_v * filter.x[6] + grav_vec
+        accel_enu = pm.ecef2enu(*(accel_ecef+start_ecef), *pad_geodetic_pos)
+        writer_pred.add_scalar("enu acceleration/x", accel_enu[0], i)
+        writer_pred.add_scalar("enu acceleration/y", accel_enu[1], i)
+        writer_pred.add_scalar("enu acceleration/z", accel_enu[2], i)
         writer_pred.add_scalar("jerk", filter.x[7], i)
         pred_measurement = filter.hx_bearing(filter.x)
         writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], i)
         writer_pred.add_scalar("bearing/elevation", pred_measurement[1], i)
+
+
+        filter.predict_update_bearing(t, np.array([azimuth, elevation]))
+
+
+        if t - last_telem > telemetry_period:
+            last_telem = t
+            filter.predict_update_telem(
+                t,
+                np.array([
+                    *(xyz_ecef + pos_noise),
+                    test_flight.z(t)+altimeter_noise,
+                ])
+            )
+
+        err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
+    print(f"MSE: {np.mean(err)}")
