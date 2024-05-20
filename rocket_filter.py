@@ -42,8 +42,8 @@ class RocketFilter:
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
-        self.x[6] = 30 # linear acceleration
-        self.x[7] = 1 # linear jerk
+        self.x[6] = 10 # linear acceleration
+        self.x[7] = 5 # linear jerk
 
         state_variances = np.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01, 5, 2])
         # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
@@ -52,7 +52,7 @@ class RocketFilter:
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        process_variances = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1])
+        process_variances = np.array([1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 0.1, 10])
         self.Q = np.diag(process_variances) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
@@ -126,10 +126,10 @@ class RocketFilter:
         '''
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
-        thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 1 else -grav_vec / 9.81
+        thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
         jerk = thrust_direction * x[7]
         drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
-        if self.flight_time > 15:
+        if self.flight_time > 1e4:
             accel = grav_vec+drag
         else:
             accel = thrust_direction * x[6] + grav_vec + drag
@@ -162,6 +162,19 @@ class RocketFilter:
         self.last_update_time = time_since_first_update
         self.telem_ukf.predict(dt)
         self.telem_ukf.update(z)
+        self.x = self.telem_ukf.x
+        self.P = self.telem_ukf.P
+        self.bearing_ukf.x = self.telem_ukf.x
+        self.bearing_ukf.P = self.telem_ukf.P
+
+    def predict(self, time_since_first_update: float):
+        '''
+        Predict the filter state
+        '''
+        dt = time_since_first_update - self.last_update_time
+        self.flight_time = time_since_first_update
+        self.last_update_time = time_since_first_update
+        self.telem_ukf.predict(dt)
         self.x = self.telem_ukf.x
         self.P = self.telem_ukf.P
         self.bearing_ukf.x = self.telem_ukf.x
