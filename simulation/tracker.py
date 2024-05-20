@@ -1,14 +1,13 @@
 from .pid_controller import PIDController
 
-from .sim_telescope import SimTelescope
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv
-from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
-from .utils import GroundTruthTrackingData, TelemetryData, azi_rot_mat, alt_rot_mat
+from .utils import GroundTruthTrackingData, TelemetryData
 from pymap3d import enu2geodetic
-from zwo_eaf import EAF
 from dataclasses import dataclass
+from .environment import Environment
+from .rocket_filter import RocketFilter
 
 @dataclass
 class Feature:
@@ -17,63 +16,27 @@ class Feature:
 
 class Tracker:
     def __init__(self, 
-                camera_res: tuple[int,int], 
-                focal_len: int, 
+                environment: Environment,
                 logger: SummaryWriter, 
-                telescope: SimTelescope, 
-                focuser: EAF,
-                mount_initial_aim: tuple[float,float],
-                rocket_initial_distance: float,
-                mount_initial_gps: tuple[float,float],
-                use_telem = False):
+                ):
         '''
-        `camera_res`: camera resolution (w,h) in pixels
-        `focal_len`: focal length in pixels
-        `logger`: tensorboard logger
-        `telescope`: telescope object for controlling the telescope with ASCOM Alpaca. 
-                    Can be a Telescope or SimTelescope. They have the same interface
-        `rocket_initial_position`: initial position of the rocket in GPS coordinates (lat,lng)
-        `mount_initial_position`: initial position of the mount in GPS coordinates (lat,lng)
         '''
 
-        self.camera_res = camera_res
-        self.focal_len = focal_len
+        self.camera_res = environment.get_camera_resolution()
+        self.focal_len = environment.get_focal_length()
         self.logger = logger
         self.x_controller = PIDController(10,0,1)
         self.y_controller = PIDController(10,0,1)
-        self.gps_pos = (*mount_initial_gps, 0) # initial position of mount in GPS coordinates (lat,lng,alt)
+        self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
+        self.environment = environment
 
-        state_dimensionality = 9
+        self.filter = RocketFilter(environment.get_pad_pos_gps(), environment.get_cam_pos_gps())
 
-        self.filter = UnscentedKalmanFilter(
-            dim_x = state_dimensionality, # state dimension (xyz plus their 1st and 2nd derivatives)
-            dim_z = 8 if use_telem else 2, # observation dimension (altitude, azimuth, lat,lng, altimeter reading, accel x,y,z)),
-            dt = 1/30,
-            hx = self._measurement_function,
-            fx = self._rocket_state_transition,
-            points = MerweScaledSigmaPoints(state_dimensionality, 1e-3, 2, 0)
-        )
-
-        azi, alt = mount_initial_aim # in radians now
-
-        start_vector = np.array([0,1,0])
-        # rotate by azi and alt degrees
-        rot_azi_mat = azi_rot_mat(azi)
-        rot_alt_mat = alt_rot_mat(alt)
-
-        self.rocket_initial_position = rot_alt_mat @ rot_azi_mat @ start_vector * rocket_initial_distance
-        self.filter.x  = np.zeros(state_dimensionality)
-        self.filter.x[0], self.filter.x[3], self.filter.x[6] = self.rocket_initial_position
-        self.previous_filter_predict_time = 0
-
-        self.telescope = telescope
         self.feature_detector = cv.SIFT_create()
         self.target_feature: np.ndarray = None # feature description 
         self.initial_feature_size = None
         self.SCALE_FACTOR = 4
-        self.use_telem = use_telem
 
-        self.focuser = focuser
         self.focuser_zero_distance = 300 # This is the total length of spacers we're using between the scope and camera, in mm
         self.focuser_focal_length = 714
 
@@ -98,33 +61,6 @@ class Tracker:
             dz+d2z*dt,
             d2z
         ])
-
-    def _measurement_function(self, state: np.ndarray):
-        '''
-        Returns alt, azi
-        or alt,azi, alt,lng,height, accel_x, accel_y, accel_z
-
-        depending on whether or not we're using telemetry
-        '''
-        x,y,z = state[0],state[3],state[6]
-        ax, ay, az = state[2], state[5], state[8]
-        alt = np.rad2deg(np.arctan2(z, np.sqrt(x**2 + y**2)))
-        azi = -np.rad2deg(np.arctan2(x, y))
-        lat, lng, height = enu2geodetic(x,y,z, *self.gps_pos)
-        initial_dist = np.linalg.norm(self.rocket_initial_position)
-        new_dist = np.linalg.norm([x,y,z])
-        scale = new_dist/initial_dist
-
-        if self.use_telem: 
-            return np.array([
-                alt,
-                azi,
-                # scale,
-                lat,lng,height,
-                ax,ay,az
-            ])
-        else:
-            return np.array([alt,azi])
 
     def estimate_az_alt_scale_from_img(self, img: np.ndarray, global_step: int, gt_pos: tuple[int,int]) -> tuple[float,float,float]:
         '''
@@ -170,7 +106,7 @@ class Tracker:
         if new_pos is None:
             return None, None, None, None
 
-        t_azi, t_alt = self.telescope.read_position()
+        t_azi, t_alt = self.environment.get_telescope_orientation()
 
         altitude_from_image_processing = t_alt+np.rad2deg(np.arctan((center[1]-new_pos[1])*self.SCALE_FACTOR/self.focal_len))
         azimuth_from_image_processing = t_azi+np.rad2deg(np.arctan((center[0]-new_pos[0])*self.SCALE_FACTOR/self.focal_len))

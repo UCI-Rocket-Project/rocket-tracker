@@ -26,3 +26,6 @@ class SimTelescope:
 
     def read_position(self):
         return self._azimuth, self._altitude
+    
+    def read_speed(self) -> tuple[float,float]:
+        return (self._azimuth_rate, self._altitude_rate)

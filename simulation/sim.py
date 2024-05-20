@@ -12,7 +12,9 @@ from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 from .rocket import Rocket
 from .tracker import Tracker
 from .utils import GroundTruthTrackingData, TelemetryData
+from ..environment import Environment
 from pymap3d import geodetic2enu, enu2geodetic
+from ..joystick_controller import JoystickController
 
 
 os.makedirs('runs', exist_ok=True)
@@ -57,23 +59,41 @@ class Sim(ShowBase):
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
 
         self.camera_fov = 0.9 # 0.9 degrees
-        self.camera_res = (958, 1078)
-        self.cam_focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        camera_res = (958, 1078)
+        self.camera_res = camera_res
+        focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        self.cam_focal_len_pixels = focal_len_pixels
         self.camLens.setFov(self.camera_fov)
+        self.telescope = SimTelescope()
 
         self.rocket = Rocket(np.array([0,self.camera_dist,0]))
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
+        self.telem = telem
         tracker_pos_gps = enu2geodetic(0,-self.camera_dist,0, telem.gps_lat, telem.gps_lng, telem.altimeter_reading)
-        self.tracker = Tracker(self.camera_res, 
-                                self.cam_focal_len_pixels, 
-                                estimate_logger, 
-                                T, 
-                                (0,0), 
-                                self.camera_dist, 
-                                tracker_pos_gps[:-1], # exclude altitude from position
-                                use_telem = True
-                                ) 
+
+        class SimulationEnvironment(Environment):
+            def __init__(env_self):
+                pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
+                cam_geodetic_location = np.array([35.353056, -117.811944, 620])
+                super().__init__(pad_geodetic_pos, cam_geodetic_location, camera_res, focal_len_pixels)
+
+            def get_telescope_orientation(env_self) -> tuple[float, float]:
+                return self.telescope.read_position()
+
+            def get_telescope_speed(env_self) -> tuple[float,float]:
+                return self.telescope.read_speed()
+
+            def move_telescope(env_self, v_azimuth: float, v_altitude: float):
+                self.telescope.slew_rate_azi_alt(v_azimuth, v_altitude)
+
+            def get_camera_image(env_self) -> np.ndarray:
+                return self.getImage()
+
+            def get_telemetry(env_self) -> TelemetryData:
+                return self.telem # updated in rocketPhysicsTask
+        
+        self.controller = JoystickController(SimulationEnvironment())
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
@@ -117,6 +137,7 @@ class Sim(ShowBase):
             gt_logger.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
         self.prev_rocket_position = rocket_pos
         self.prev_rocket_observation_time = task.time
+        self.telem = self.rocket.get_telemetry(task.time)
         return Task.cont
 
     def getImage(self):
@@ -166,33 +187,7 @@ class Sim(ShowBase):
         return np.rad2deg(az), np.rad2deg(alt)
 
     def spinCameraTask(self, task):
-        # angleDegrees = task.time * 6.0
-        img = self.getImage()
-        if img is None:
-            return Task.cont
-
-        x,y = self.getGroundTruthRocketPixelCoordinates(task.time)
-        
-        ground_truth_tracking_data = GroundTruthTrackingData(
-            pixel_coordinates = (x,y),
-            enu_coordinates = self.rocket.get_position(task.time),
-            az_alt = self.getGroundTruthAzAlt(self.rocket.get_position(task.time))
-        )
-
-        self.tracker.update_tracking(
-            img,
-            self.rocket.get_telemetry(task.time),
-            task.time*100, 
-            ground_truth_tracking_data
-        )
-
-        t_azi, t_alt  = T.read_position()
-        self.camera.setHpr(t_azi, t_alt,0)
-        gt_logger.add_scalar("Telescope Azimuth", t_azi, task.time*100)
-        gt_logger.add_scalar("Telescope Altitude", t_alt, task.time*100)
-
-        # cv.circle(img, [x,y], 10, (255,0,0), -1)
-        # cv.imwrite("latest.png", img) 
+        self.controller.loop_callback()
         return Task.cont
 
 
