@@ -9,16 +9,14 @@ from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 
 class RocketFilter:
     def __init__(self, 
-                 pad_geodetic_location: tuple[float,float,float], 
-                 cam_geodetic_location: tuple[float,float,float],
-                 initial_bearing: tuple[float,float],
-                 drag_coefficient: float = 5e-4,
-                 writer: SummaryWriter = None):
+                pad_geodetic_location: tuple[float,float,float], 
+                cam_geodetic_location: tuple[float,float,float],
+                drag_coefficient: float = 5e-4,
+                writer: SummaryWriter = None):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
         It is used to initialize the filter state.
         `cam_geodetic_location` is a tuple of (latitude, longitude, altitude) of the camera.
-        `initial_bearing` is a tuple of (azimuth, elevation) of the camera when it is pointed at the rocket while it's on the pad.
         This assumes the camera is exactly level so that azimuth doesn't change the vertical component of the bearing vector.
         '''
         # x dimension is [x,y,z,vx,vy,vz,q0,q1,q2,q3,wx,wy,wz,thrust,dthrust]
@@ -30,7 +28,6 @@ class RocketFilter:
 
         self.pad_geodetic_location = pad_geodetic_location
         self.cam_geodetic_location = cam_geodetic_location
-        self.initial_bearing = initial_bearing
         self.drag_coefficient = drag_coefficient
         self.writer = writer
 
@@ -104,8 +101,8 @@ class RocketFilter:
         
 
         return np.array([
-            azimuth_bearing,# + self.initial_bearing[0],
-            elevation_bearing# + self.initial_bearing[1],
+            azimuth_bearing,
+            elevation_bearing
         ])
 
     def hx_telem(self, x: np.ndarray):
