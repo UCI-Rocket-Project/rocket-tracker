@@ -58,7 +58,7 @@ if __name__ == "__main__":
         azimuth = np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0])
         elevation = np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2]))
 
-        xyz_enu = pm.geodetic2enu(*xyz_geodetic, *start_geodetic)
+        xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
         writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
         writer_gt.add_scalar("enu position/y", xyz_enu[1], i)
         writer_gt.add_scalar("enu position/z", xyz_enu[2], i)
@@ -71,6 +71,18 @@ if __name__ == "__main__":
         writer_gt.add_scalar("bearing/azimuth", azimuth, i)
         writer_gt.add_scalar("bearing/elevation", elevation, i)
 
+        filter.predict_update_bearing(t, np.array([azimuth, elevation]))
+
+
+        if t - last_telem > telemetry_period:
+            last_telem = t
+            filter.predict_update_telem(
+                t,
+                np.array([
+                    *(xyz_ecef + pos_noise),
+                    test_flight.z(t)+altimeter_noise,
+                ])
+            )
 
         pred_ecef = filter.x[:3]
         pred_enu = pm.ecef2enu(*pred_ecef, *start_geodetic)
@@ -91,24 +103,12 @@ if __name__ == "__main__":
         writer_pred.add_scalar("enu acceleration/x", accel_enu[0], i)
         writer_pred.add_scalar("enu acceleration/y", accel_enu[1], i)
         writer_pred.add_scalar("enu acceleration/z", accel_enu[2], i)
+        writer_pred.add_scalar("thrust magnitude", filter.x[6], i)
         writer_pred.add_scalar("jerk", filter.x[7], i)
         pred_measurement = filter.hx_bearing(filter.x)
         writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], i)
         writer_pred.add_scalar("bearing/elevation", pred_measurement[1], i)
 
-
-        filter.predict_update_bearing(t, np.array([azimuth, elevation]))
-
-
-        if t - last_telem > telemetry_period:
-            last_telem = t
-            filter.predict_update_telem(
-                t,
-                np.array([
-                    *(xyz_ecef + pos_noise),
-                    test_flight.z(t)+altimeter_noise,
-                ])
-            )
-
         err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
-    print(f"MSE: {np.mean(err)}")
+
+    print(f"MSE: {np.mean(err)}, max: {np.max(err)}")
