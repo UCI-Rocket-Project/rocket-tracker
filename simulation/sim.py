@@ -66,16 +66,18 @@ class Sim(ShowBase):
         self.camLens.setFov(self.camera_fov)
         self.telescope = SimTelescope()
 
-        self.rocket = Rocket(np.array([0,self.camera_dist,0]))
+        pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
+        cam_geodetic_location = np.array([35.353056, -117.811944, 620])
+
+        pad_loc_enu = geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
+
+        self.rocket = Rocket(pad_loc_enu, 10)
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         self.telem = telem
-        tracker_pos_gps = enu2geodetic(0,-self.camera_dist,0, telem.gps_lat, telem.gps_lng, telem.altimeter_reading)
 
         class SimulationEnvironment(Environment):
             def __init__(env_self):
-                pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
-                cam_geodetic_location = np.array([35.353056, -117.811944, 620])
                 super().__init__(pad_geodetic_pos, cam_geodetic_location, camera_res, focal_len_pixels)
 
             def get_telescope_orientation(env_self) -> tuple[float, float]:
@@ -188,6 +190,8 @@ class Sim(ShowBase):
         return np.rad2deg(az), np.rad2deg(alt)
 
     def spinCameraTask(self, task):
+        t_azi, t_alt  = self.telescope.read_position()
+        self.camera.setHpr(t_azi, t_alt,0)
         self.controller.loop_callback()
         return Task.cont
 
