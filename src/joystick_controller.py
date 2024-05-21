@@ -39,7 +39,7 @@ class JoystickController:
         self.gain = 0
         self.exposure = 1/30
 
-        self.tracker = Tracker(environment, SummaryWriter("runs/tracker"))
+        self.tracker = None
         self.latest_tracker_pos: np.ndarray = None
 
         
@@ -64,6 +64,9 @@ class JoystickController:
 
         elif button == BUTTON_SQUARE:
             print("Tracking toggled")
+            if not self.tracking:
+                self.tracker = Tracker(self.environment, self.environment.get_telescope_orientation(), SummaryWriter("runs/tracker"))
+
             self.tracking = not self.tracking
 
         elif button == BUTTON_X:
@@ -124,13 +127,6 @@ class JoystickController:
         rect_thickness = -1 if self.tracking else 2
         cv.rectangle(img, (w-50, h-50), (w-20, h-20), (255,0,255), rect_thickness)
 
-        if self.tracking:
-            # draw green circle around pixel pos
-            color = (0,255,0)
-            
-            if self.latest_tracker_pos is not None:
-                cv.circle(img, self.latest_tracker_pos//scale_factor, 10, color, 3)
-
         cv.imshow("Camera Image", img)
     
     def loop_callback(self) -> bool:
@@ -140,19 +136,16 @@ class JoystickController:
             if event.type == pygame.JOYBUTTONDOWN:
                 self._handle_button_press(event.button) 
         
+        img = self.environment.get_camera_image()
         if self.tracking:
-            tracker_estimation = self.tracker.update_tracking(
-                self.environment.get_camera_image(),
-                self.environment.get_telescope_orientation(),
-                0,
-                None
+            self.tracker.update_tracking(
+                img,
+                self.environment.get_telemetry(),
             )
-            if tracker_estimation is not None:
-                self.latest_tracker_pos = tracker_estimation
         else:
             self._joystick_control()
         
-        img = self.environment.get_camera_image()
+        # important: this has side effects on `img` so it has to be after the tracker update
         self._update_display(img)
 
         if cv.waitKey(1) == ord('q'):

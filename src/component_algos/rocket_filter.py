@@ -1,6 +1,4 @@
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from scipy.linalg import cholesky
 import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
 from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
@@ -11,6 +9,7 @@ class RocketFilter:
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
                 cam_geodetic_location: tuple[float,float,float],
+                initial_cam_orientation: tuple[float,float],
                 drag_coefficient: float = 5e-4,
                 writer: SummaryWriter = None):
         '''
@@ -29,6 +28,7 @@ class RocketFilter:
         self.pad_geodetic_location = pad_geodetic_location
         self.cam_geodetic_location = cam_geodetic_location
         self.drag_coefficient = drag_coefficient
+        self.initial_cam_orientation = initial_cam_orientation
         self.writer = writer
 
         self.last_update_time = 0
@@ -96,8 +96,8 @@ class RocketFilter:
         '''
 
         rocket_pos_enu = pm.ecef2enu(*x[:3], *self.cam_geodetic_location)
-        azimuth_bearing = np.arctan2(rocket_pos_enu[1], rocket_pos_enu[0])
-        elevation_bearing = np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2]))
+        azimuth_bearing = np.arctan2(rocket_pos_enu[1], rocket_pos_enu[0]) + self.initial_cam_orientation[0]
+        elevation_bearing = np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])) + self.initial_cam_orientation[1]
         
 
         return np.array([
