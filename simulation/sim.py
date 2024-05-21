@@ -58,7 +58,7 @@ class Sim(ShowBase):
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
 
-        self.camera_fov = 10 # 0.9 degrees
+        self.camera_fov = 0.9 # degrees
         camera_res = (958, 1078)
         self.camera_res = camera_res
         focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))

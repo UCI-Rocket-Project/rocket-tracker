@@ -113,7 +113,7 @@ class JoystickController:
         h,w = img.shape[:2]
         img = cv.resize(img, (w*scale_factor, h*scale_factor))
 
-        # # draw a crosshair
+        # draw a crosshair
         h,w = img.shape[:2]
         cv.line(img, (w//2-50,h//2), (w//2+50,h//2), (0,0,255), 1)
         cv.line(img, (w//2,h//2-50), (w//2,h//2+50), (0,0,255), 1)
