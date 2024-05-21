@@ -100,8 +100,8 @@ class JoystickController:
         cv.rectangle(img, (10,50), (200,0), (0,0,0), -1)
         azi, alt = self.environment.get_telescope_orientation()
         readout_text = ""
-        readout_text += f"Gain: {self.gain}"
-        readout_text += f"\nazi: {azi:.2f} alt: {alt:.2f}"
+        readout_text += f"Gain: {self.gain}\n"
+        readout_text += f"azi: {azi:.2f} alt: {alt:.2f}"
         for i, line in enumerate(readout_text.split('\n')):
             cv.putText(img, line, (10,20+i*15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
