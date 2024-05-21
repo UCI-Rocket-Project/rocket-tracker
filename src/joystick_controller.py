@@ -71,7 +71,6 @@ class JoystickController:
             quit()
 
     def _joystick_control(self):
-        
         slew_x = 0
         slew_y = 0
 
@@ -94,7 +93,7 @@ class JoystickController:
             clamped = np.tanh(axis[RIGHT_AXIS_Y])
             slew_y += clamped
         
-        self.environment.move_telescope(slew_x, slew_y)
+        self.environment.move_telescope(-slew_x, -slew_y)
 
     def _update_display(self, img: np.ndarray):
         # draw current position
@@ -108,9 +107,11 @@ class JoystickController:
 
         if self.recording:
             self.video_writer.write(img)
-        # resize to half size
-        scale_factor = 1
-        img = cv.resize(img, (1920//scale_factor, 1080//scale_factor))
+
+        # make tallest dimension 1080
+        scale_factor = max(1, max(img.shape[:2])//1080)
+        h,w = img.shape[:2]
+        img = cv.resize(img, (w*scale_factor, h*scale_factor))
 
         # # draw a crosshair
         h,w = img.shape[:2]
@@ -140,7 +141,12 @@ class JoystickController:
                 self._handle_button_press(event.button) 
         
         if self.tracking:
-            tracker_estimation = self.tracker.update_tracking()
+            tracker_estimation = self.tracker.update_tracking(
+                self.environment.get_camera_image(),
+                self.environment.get_telescope_orientation(),
+                0,
+                None
+            )
             if tracker_estimation is not None:
                 self.latest_tracker_pos = tracker_estimation
         else:
