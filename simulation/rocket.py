@@ -9,12 +9,24 @@ class Rocket:
         self.launch_time = launch_time
 
     def get_position(self, time):
+        if time < self.launch_time:
+            time = 0
+        else:
+            time -= self.launch_time
         return self.initial_position + np.array([test_flight.x(time), test_flight.y(time), test_flight.z(time)-self.initial_alt])
 
     def get_velocity(self, time):
+        if time < self.launch_time:
+            time = 0
+        else:
+            time -= self.launch_time
         return np.array([test_flight.vx(time), test_flight.vy(time), test_flight.vz(time)])
     
     def get_acceleration(self, time):
+        if time < self.launch_time:
+            time = 0
+        else:
+            time -= self.launch_time
         return np.array([test_flight.ax(time), test_flight.ay(time), test_flight.az(time)])
 
     def get_telemetry(self, time):
@@ -23,15 +35,9 @@ class Rocket:
         ACC_NOISE_STD = 0#1e-2
 
         if time < self.launch_time:
-            return TelemetryData(
-                gps_lat=self.initial_position[0],
-                gps_lng=self.initial_position[1],
-                altimeter_reading=self.initial_alt,
-                accel_x = 0,
-                accel_y = 0,
-                accel_z = 0,
-            )
-        time -= self.launch_time
+            time = 0
+        else:
+            time -= self.launch_time
         return TelemetryData(
             gps_lat=test_flight.latitude(time) + np.random.normal(GPS_NOISE_STD),
             gps_lng=test_flight.longitude(time) + np.random.normal(GPS_NOISE_STD),

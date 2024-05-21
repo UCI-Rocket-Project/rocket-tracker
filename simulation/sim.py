@@ -58,13 +58,13 @@ class Sim(ShowBase):
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
 
-        self.camera_fov = 0.9 # 0.9 degrees
+        self.camera_fov = 10 # 0.9 degrees
         camera_res = (958, 1078)
         self.camera_res = camera_res
         focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.cam_focal_len_pixels = focal_len_pixels
         self.camLens.setFov(self.camera_fov)
-        self.telescope = SimTelescope()
+        self.telescope = SimTelescope(-157.5, 0)
 
         pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
         cam_geodetic_location = np.array([35.353056, -117.811944, 620])
@@ -108,6 +108,7 @@ class Sim(ShowBase):
         rocket_accel = self.rocket.get_acceleration(task.time)
         self.telescope.step(task.time)
         
+        az,alt = self.telescope.read_position()
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
         if self.prev_rocket_position is not None:
