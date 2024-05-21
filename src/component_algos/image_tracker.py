@@ -7,6 +7,9 @@ class Feature:
     descriptor: np.ndarray
     size: float
 
+class NoKeypointsFoundError(RuntimeError):
+    pass
+
 class ImageTracker:
     def __init__(self, scale_factor=4):
         '''
@@ -34,7 +37,7 @@ class ImageTracker:
         gray_resized = cv.resize(gray_resized, (gray_resized.shape[1], gray_resized.shape[0])//self.scale_factor) # resize to make computation faster
         keypoints, descriptions = self.feature_detector.detectAndCompute(gray_resized,None)
         if len(keypoints) == 0:
-            raise RuntimeError("No keypoints found in image")
+            raise NoKeypointsFoundError("No keypoints found in image")
 
         # visualize keypoints on image
         debug_vis_keypoints = [cv.KeyPoint(kp.pt[0]*self.scale_factor, kp.pt[1]*self.scale_factor, kp.size) for kp in keypoints]
