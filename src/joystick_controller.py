@@ -129,7 +129,7 @@ class JoystickController:
 
         cv.imshow("Camera Image", img)
     
-    def loop_callback(self) -> bool:
+    def loop_callback(self, time: float) -> bool:
         for event in pygame.event.get():
             if event.type == pygame.JOYAXISMOTION:
                 self.joystick_axes[event.axis] = event.value
@@ -141,6 +141,7 @@ class JoystickController:
             self.tracker.update_tracking(
                 img,
                 self.environment.get_telemetry(),
+                time
             )
         else:
             self._joystick_control()

@@ -50,13 +50,13 @@ class Tracker:
             pixel_pos = self.img_tracker.estimate_pos(img)
         except NoKeypointsFoundError:
             pixel_pos = None
-
+        
         if pixel_pos is not None:
             if self.launch_detector is None:
                 self.launch_detector = LaunchDetector(pixel_pos)
 
             if not self.launch_detector.has_detected_launch():
-                self.launch_detector.update(pixel_pos)
+                self.launch_detector.update(pixel_pos, time)
 
         if not self.launch_detector.has_detected_launch():
             return

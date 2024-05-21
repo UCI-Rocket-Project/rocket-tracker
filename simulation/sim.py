@@ -190,7 +190,7 @@ class Sim(ShowBase):
     def spinCameraTask(self, task):
         t_azi, t_alt  = self.telescope.read_position()
         self.camera.setHpr(t_azi, t_alt,0)
-        self.controller.loop_callback()
+        self.controller.loop_callback(task.time)
         return Task.cont
 
 

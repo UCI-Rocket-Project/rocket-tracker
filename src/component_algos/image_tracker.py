@@ -31,10 +31,10 @@ class ImageTracker:
         returns (alt,az,scale) where alt and az are in degrees and scale has no units, it's just the current apparent object size
         divided by the initial apparent object size
 
-        raises RuntimeError if no keypoints are found in the image
+        raises NoKeypointsFoundError if no keypoints are found in the image
         '''
         gray_resized = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-        gray_resized = cv.resize(gray_resized, (gray_resized.shape[1], gray_resized.shape[0])//self.scale_factor) # resize to make computation faster
+        gray_resized = cv.resize(gray_resized, np.array(gray_resized.shape[::-1])//self.scale_factor) # resize to make computation faster
         keypoints, descriptions = self.feature_detector.detectAndCompute(gray_resized,None)
         if len(keypoints) == 0:
             raise NoKeypointsFoundError("No keypoints found in image")
