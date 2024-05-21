@@ -1,5 +1,5 @@
 from .flight_model import test_flight
-from .utils import TelemetryData
+from src.utils import TelemetryData
 import numpy as np
 
 class Rocket:

@@ -10,12 +10,11 @@ class SimTelescope:
         self._last_updated_time = 0
         self.is_fake = True
 
-    def slew_rate_azi_alt(self, azi_rate: float, alt_rate: float, time: float):
+    def slew_rate_azi_alt(self, azi_rate: float, alt_rate: float):
         '''
         Slew the telescope at the given rates in degrees per second
         time (in seconds) is used to calculate the change in position
         '''
-        self.step(time)
         self._azimuth_rate = azi_rate
         self._altitude_rate = alt_rate
 

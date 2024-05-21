@@ -1,5 +1,5 @@
 import numpy as np
-from simulation.utils import TelemetryData
+from .utils import TelemetryData
 
 class Environment:
     def __init__(self, 

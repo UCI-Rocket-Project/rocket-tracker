@@ -1,7 +1,7 @@
 import pygame
 from telescope import Telescope
 from zwo_asi import ASICamera
-from simulation.tracker import Tracker
+from tracker import Tracker
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import cv2 as cv

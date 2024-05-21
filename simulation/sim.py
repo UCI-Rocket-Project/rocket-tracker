@@ -10,11 +10,11 @@ from direct.task import Task
 from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 
 from .rocket import Rocket
-from .tracker import Tracker
-from .utils import GroundTruthTrackingData, TelemetryData
-from ..environment import Environment
+from src.tracker import Tracker
+from src.utils import GroundTruthTrackingData, TelemetryData
+from src.environment import Environment
 from pymap3d import geodetic2enu, enu2geodetic
-from ..joystick_controller import JoystickController
+from src.joystick_controller import JoystickController
 
 
 os.makedirs('runs', exist_ok=True)
@@ -104,6 +104,7 @@ class Sim(ShowBase):
         rocket_pos = self.rocket.get_position(task.time)
         rocket_vel = self.rocket.get_velocity(task.time)
         rocket_accel = self.rocket.get_acceleration(task.time)
+        self.telescope.step(task.time)
         
         x,y,z = rocket_pos
         self.rocket_model.setPos(x,y,z)
