@@ -7,6 +7,7 @@ from .environment import Environment
 from .component_algos.rocket_filter import RocketFilter
 from .component_algos.image_tracker import ImageTracker, NoKeypointsFoundError
 import pymap3d as pm
+from scipy.spatial.transform import Rotation as R
 
 
 class Tracker:
@@ -32,10 +33,23 @@ class Tracker:
         self.step_value = 0
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
-        raise NotImplementedError()
+        az = np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
+        alt = np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len)
+        pixel_rot = R.from_euler("ZY", [az, alt], degrees=False)
+        initial_rot = R.from_euler("ZY", self.initial_cam_orientation, degrees=True)
+
+        final_rot = initial_rot * pixel_rot
+        az, alt = final_rot.as_euler("ZYX", degrees=True)[:2]
+        return az, alt
 
     def _ecef_to_az_alt(self, ecef_pos: np.ndarray) -> tuple[float,float]:
-        raise NotImplementedError()
+        pos_enu = pm.ecef2enu(*ecef_pos, *self.environment.get_cam_pos_gps())
+        azimuth_bearing = np.arctan2(pos_enu[1], pos_enu[0]) + self.initial_cam_orientation[0]
+        elevation_bearing = np.arctan2(pos_enu[2], np.linalg.norm(pos_enu[:2])) + self.initial_cam_orientation[1]
+        return (
+            azimuth_bearing,
+            elevation_bearing
+        )
 
     def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float):
         '''
@@ -73,7 +87,7 @@ class Tracker:
             z = np.array([*ecef_pos, alt])
             self.filter.predict_update_telem(time - self.launch_detector.get_launch_time(), z)
 
-        ecef_pos = self.filter.x
+        ecef_pos = self.filter.x[:3]
         az, alt = self._ecef_to_az_alt(ecef_pos)
         current_az, current_alt = self.environment.get_telescope_orientation()
 
