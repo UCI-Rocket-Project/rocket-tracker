@@ -8,7 +8,6 @@ Scripts
 
 __pycache__
 
-ascom.alpaca.simulators*
-
+*.log
 runs
 runs_archive
