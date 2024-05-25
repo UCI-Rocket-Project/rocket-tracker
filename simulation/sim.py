@@ -190,7 +190,7 @@ class Sim(ShowBase):
         return np.rad2deg(az), np.rad2deg(alt)
     
     def _get_img_debug_callback(self, time):
-        pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(time,)
+        pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(time)
         def callback(img: np.ndarray):
             cv.circle(img, (pixel_x, pixel_y), 10, (255,0,0), -1)
         return callback
