@@ -66,6 +66,8 @@ class Tracker:
             pixel_pos = None
         
         if pixel_pos is not None:
+            self.logger.add_scalar("pixel position/x", pixel_pos[0], time*100)
+            self.logger.add_scalar("pixel position/y", pixel_pos[1], time*100)
             if self.launch_detector is None:
                 self.launch_detector = LaunchDetector(pixel_pos)
 
@@ -73,8 +75,10 @@ class Tracker:
                 self.launch_detector.update(pixel_pos, time)
 
         if not self.launch_detector.has_detected_launch():
+            self.logger.add_scalar("launched", 0, self.step_value, walltime=time)
             return
-        
+        self.logger.add_scalar("launched", 1, self.step_value, walltime=time)
+
         # calculate azimuth and altitude based on pixel position
 
         if pixel_pos is not None:
@@ -91,8 +95,26 @@ class Tracker:
         az, alt = self._ecef_to_az_alt(ecef_pos)
         current_az, current_alt = self.environment.get_telescope_orientation()
 
+        enu_pos = pm.ecef2enu(*ecef_pos, *self.environment.get_pad_pos_gps())
+        self.logger.add_scalar("enu position/x", enu_pos[0], time*100)
+        self.logger.add_scalar("enu position/y", enu_pos[1], time*100)
+        self.logger.add_scalar("enu position/z", enu_pos[2], time*100)
+
+        enu_next_pos = pm.ecef2enu(*(self.filter.x[:3] + self.filter.x[3:6]), *self.environment.get_pad_pos_gps())
+        enu_vel = np.array(enu_next_pos) - np.array(enu_pos)
+
+        self.logger.add_scalar("enu velocity/x", enu_vel[0], time*100)
+        self.logger.add_scalar("enu velocity/y", enu_vel[1], time*100)
+        self.logger.add_scalar("enu velocity/z", enu_vel[2], time*100)
+
+        self.logger.add_scalar("bearing/azimuth", az, time*100)
+        self.logger.add_scalar("bearing/altitude", alt, time*100)
+
         az_err = az - current_az
         alt_err = alt - current_alt
+
+        self.logger.add_scalar("mount/azimuth", az_err, time*100)
+        self.logger.add_scalar("mount/altitude", alt_err, time*100)
 
         input_x = self.x_controller.step(az_err)
         input_y = self.y_controller.step(alt_err)
@@ -100,6 +122,7 @@ class Tracker:
         MAX_SLEW_RATE_ALT = 30 
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
-        self.logger.add_scalar("X Input", x_clipped, self.step_value, walltime=time)
-        self.logger.add_scalar("Y Input", y_clipped, self.step_value, walltime=time)
+        self.environment.move_telescope(x_clipped, y_clipped)
+        self.logger.add_scalar("mount/x_input", x_clipped, time*100)
+        self.logger.add_scalar("mount/y_input", y_clipped, time*100)
         self.step_value += 1
