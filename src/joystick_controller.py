@@ -23,13 +23,18 @@ BUTTON_LEFT_TRIGGER = 6
 BUTTON_RIGHT_TRIGGER = 7
 
 class JoystickController:
-    def __init__(self, environment: Environment):
+    def __init__(self, environment: Environment, logger: SummaryWriter):
         self.environment  = environment
         pygame.init()
         pygame.joystick.init()
 
-        self.controller = pygame.joystick.Joystick(0)
-        self.controller.init()
+        try:
+            self.controller = pygame.joystick.Joystick(0)
+            self.controller.init()
+            self.has_joystick = True
+        except pygame.error:
+            print("No joystick detected")
+            self.has_joystick = False
         self.joystick_axes = {}
 
         self.recording = False
@@ -41,6 +46,13 @@ class JoystickController:
 
         self.tracker = None
         self.latest_tracker_pos: np.ndarray = None
+
+        self.logger = logger
+    
+    def _toggle_tracking(self):
+        if not self.tracking:
+            self.tracker = Tracker(self.environment, self.environment.get_telescope_orientation(), self.logger)
+        self.tracking = not self.tracking
 
         
     def _handle_button_press(self,button: int):
@@ -64,10 +76,7 @@ class JoystickController:
 
         elif button == BUTTON_SQUARE:
             print("Tracking toggled")
-            if not self.tracking:
-                self.tracker = Tracker(self.environment, self.environment.get_telescope_orientation(), SummaryWriter("runs/tracker"))
-
-            self.tracking = not self.tracking
+            self._toggle_tracking()
 
         elif button == BUTTON_X:
             print("Quitting")
@@ -97,6 +106,23 @@ class JoystickController:
             slew_y += clamped
         
         self.environment.move_telescope(-slew_x, -slew_y)
+
+    def _handle_keypress(self, key: int):
+        if key == ord('q'):
+            self.environment.move_telescope(0,0)
+            quit()
+        elif key == ord('w'):
+            self.environment.move_telescope(0,1)
+        elif key == ord('s'):
+            self.environment.move_telescope(0,-1)
+        elif key == ord('a'):
+            self.environment.move_telescope(1,0)
+        elif key == ord('d'):
+            self.environment.move_telescope(-1,0)
+        elif key == ord('t'):
+            self._toggle_tracking()
+        else:
+            self.environment.move_telescope(0,0)
 
     def _update_display(self, img: np.ndarray):
         # draw current position
@@ -135,6 +161,9 @@ class JoystickController:
                 self.joystick_axes[event.axis] = event.value
             if event.type == pygame.JOYBUTTONDOWN:
                 self._handle_button_press(event.button) 
+
+        key = cv.waitKey(1)
+        self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
         if self.tracking:
@@ -144,7 +173,8 @@ class JoystickController:
                 time
             )
         else:
-            self._joystick_control()
+            if self.has_joystick:
+                self._joystick_control()
         
         # important: this has side effects on `img` so it has to be after the tracker update
         self._update_display(img)
