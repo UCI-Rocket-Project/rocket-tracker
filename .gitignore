@@ -11,3 +11,4 @@ __pycache__
 ascom.alpaca.simulators*
 
 runs
+runs_archive
