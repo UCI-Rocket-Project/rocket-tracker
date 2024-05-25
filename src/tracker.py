@@ -8,6 +8,7 @@ from .component_algos.rocket_filter import RocketFilter
 from .component_algos.image_tracker import ImageTracker, NoKeypointsFoundError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
+import cv2 as cv
 
 
 class Tracker:
@@ -35,7 +36,7 @@ class Tracker:
         az = np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
         alt = np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len)
         pixel_rot = R.from_euler("ZY", [az, alt], degrees=False)
-        initial_rot = R.from_euler("ZY", self.initial_cam_orientation, degrees=True)
+        initial_rot = R.from_euler("ZY", self.environment.get_telescope_orientation(), degrees=True)
 
         final_rot = initial_rot * pixel_rot
         az, alt = final_rot.as_euler("ZYX", degrees=True)[:2]
@@ -59,10 +60,14 @@ class Tracker:
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
 
-        try:
-            pixel_pos = self.img_tracker.estimate_pos(img)
-        except NoKeypointsFoundError:
-            pixel_pos = None
+        if hasattr(self.environment, "get_ground_truth_pixel_loc"):
+            pixel_pos = self.environment.get_ground_truth_pixel_loc(time)
+        else:
+            try:
+                pixel_pos = self.img_tracker.estimate_pos(img)
+            except NoKeypointsFoundError:
+                pixel_pos = None
+        cv.circle(img, pixel_pos, 10, (0,255,0), 2)
         
         if pixel_pos is not None:
             self.logger.add_scalar("pixel position/x", pixel_pos[0], time*100)
@@ -109,16 +114,17 @@ class Tracker:
         self.logger.add_scalar("bearing/azimuth", az, time*100)
         self.logger.add_scalar("bearing/altitude", alt, time*100)
 
-        az_err = az - current_az
-        alt_err = alt - current_alt
+        az, alt = self._pixel_pos_to_az_alt(pixel_pos) # temporary override
+        az_err = current_az - az
+        alt_err = current_alt - alt
 
-        self.logger.add_scalar("mount/azimuth", az_err, time*100)
-        self.logger.add_scalar("mount/altitude", alt_err, time*100)
+        self.logger.add_scalar("mount/azimuth", az, time*100)
+        self.logger.add_scalar("mount/altitude", alt, time*100)
 
         input_x = self.x_controller.step(az_err)
         input_y = self.y_controller.step(alt_err)
-        MAX_SLEW_RATE_AZI = 30 
-        MAX_SLEW_RATE_ALT = 30 
+        MAX_SLEW_RATE_AZI = 5 
+        MAX_SLEW_RATE_ALT = 10
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
         self.environment.move_telescope(x_clipped, y_clipped)

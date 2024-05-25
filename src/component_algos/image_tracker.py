@@ -70,6 +70,4 @@ class ImageTracker:
         self.target_feature = new_feature
         pixel_loc = np.array(new_pos) * self.scale_factor
 
-        cv.circle(img, tuple(pixel_loc), 10, (0,255,0), 2)
-
         return pixel_loc[1], pixel_loc[0]
