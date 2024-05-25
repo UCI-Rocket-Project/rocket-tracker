@@ -30,7 +30,6 @@ class Tracker:
         self.filter = RocketFilter(environment.get_pad_pos_gps(), environment.get_cam_pos_gps(), initial_cam_orientation)
         self.img_tracker = ImageTracker()
         self.launch_detector: LaunchDetector = None # set in update_tracking on first frame
-        self.step_value = 0
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
         az = np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
@@ -75,9 +74,9 @@ class Tracker:
                 self.launch_detector.update(pixel_pos, time)
 
         if not self.launch_detector.has_detected_launch():
-            self.logger.add_scalar("launched", 0, self.step_value, walltime=time)
+            self.logger.add_scalar("launched", 0, time*100)
             return
-        self.logger.add_scalar("launched", 1, self.step_value, walltime=time)
+        self.logger.add_scalar("launched", 1, time*100)
 
         # calculate azimuth and altitude based on pixel position
 
@@ -125,4 +124,3 @@ class Tracker:
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
-        self.step_value += 1
