@@ -15,6 +15,9 @@ from src.utils import GroundTruthTrackingData, TelemetryData
 from src.environment import Environment
 from pymap3d import geodetic2enu, enu2geodetic
 from src.joystick_controller import JoystickController
+import shutil
+print("Removing old runs directory")
+shutil.rmtree("runs")
 
 class Sim(ShowBase):
 
