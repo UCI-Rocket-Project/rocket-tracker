@@ -60,8 +60,9 @@ class Sim(ShowBase):
 
         pad_loc_enu = geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
 
-        self.logger = SummaryWriter("runs/sim")
-        self.rocket = Rocket(pad_loc_enu, 10)
+        self.logger = SummaryWriter("runs/ground_truth")
+        self.launch_time = 10
+        self.rocket = Rocket(pad_loc_enu, self.launch_time)
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         self.telem = telem
@@ -134,6 +135,9 @@ class Sim(ShowBase):
             self.logger.add_scalar("pixel position/y", pixel_y, task.time*100)
             # az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
             # alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
+        launched = int(task.time>=self.launch_time)
+
+        self.logger.add_scalar("launched", launched, task.time*100)
         self.prev_rocket_position = rocket_pos
         self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
@@ -184,11 +188,17 @@ class Sim(ShowBase):
         az = -np.arctan2(rocket_pos[0], rocket_pos[1])
         alt = np.arctan2(rocket_pos[2], np.sqrt(rocket_pos[0]**2 + rocket_pos[1]**2))
         return np.rad2deg(az), np.rad2deg(alt)
+    
+    def _get_img_debug_callback(self, time):
+        pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(time,)
+        def callback(img: np.ndarray):
+            cv.circle(img, (pixel_x, pixel_y), 10, (255,0,0), -1)
+        return callback
 
     def spinCameraTask(self, task):
         t_azi, t_alt  = self.telescope.read_position()
         self.camera.setHpr(t_azi, t_alt,0)
-        self.controller.loop_callback(task.time)
+        self.controller.loop_callback(task.time, self._get_img_debug_callback(task.time))
         return Task.cont
 
 

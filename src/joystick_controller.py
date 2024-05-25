@@ -5,6 +5,7 @@ import cv2 as cv
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from time import strftime
+from typing import Callable
 
 LEFT_AXIS_X = 0
 LEFT_AXIS_Y = 1
@@ -155,7 +156,11 @@ class JoystickController:
 
         cv.imshow("Camera Image", img)
     
-    def loop_callback(self, time: float) -> bool:
+    def loop_callback(self, time: float, img_debug_callback: Callable = lambda x: None) -> bool:
+        '''
+        img_debug_callback should take a cv Mat and draw on it as a side effect, then return nothing.
+        The default value is a function that takes 1 argument and does nothing.
+        '''
         for event in pygame.event.get():
             if event.type == pygame.JOYAXISMOTION:
                 self.joystick_axes[event.axis] = event.value
@@ -163,6 +168,8 @@ class JoystickController:
                 self._handle_button_press(event.button) 
 
         key = cv.waitKey(1)
+        if time > 5 and not self.tracking:
+            key = ord('t')
         self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
@@ -177,6 +184,7 @@ class JoystickController:
                 self._joystick_control()
         
         # important: this has side effects on `img` so it has to be after the tracker update
+        img_debug_callback(img)
         self._update_display(img)
 
         if cv.waitKey(1) == ord('q'):
