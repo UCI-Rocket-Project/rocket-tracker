@@ -16,14 +16,6 @@ from src.environment import Environment
 from pymap3d import geodetic2enu, enu2geodetic
 from src.joystick_controller import JoystickController
 
-
-os.makedirs('runs', exist_ok=True)
-num_prev_runs = len(os.listdir('runs')) 
-print(f"Run number {num_prev_runs}")
-gt_logger = SummaryWriter(f'runs/{num_prev_runs}/ground_truth')
-estimate_logger = SummaryWriter(f'runs/{num_prev_runs}/prediction')
-T = SimTelescope(azimuth=0, altitude=0)
-
 class Sim(ShowBase):
 
     def __init__(self):
@@ -61,13 +53,14 @@ class Sim(ShowBase):
         focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.cam_focal_len_pixels = focal_len_pixels
         self.camLens.setFov(self.camera_fov)
-        self.telescope = SimTelescope(-69.5, 0)
+        self.telescope = SimTelescope(-69.62, 0)
 
         pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
         cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
         pad_loc_enu = geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
 
+        self.logger = SummaryWriter("runs/sim")
         self.rocket = Rocket(pad_loc_enu, 10)
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
@@ -91,13 +84,16 @@ class Sim(ShowBase):
 
             def get_telemetry(env_self) -> TelemetryData:
                 return self.telem # updated in rocketPhysicsTask
+            
+        estimate_logger = SummaryWriter("runs/estimate")
         
-        self.controller = JoystickController(SimulationEnvironment())
+        self.controller = JoystickController(SimulationEnvironment(), estimate_logger)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
         self.prev_rocket_position = None
         self.prev_rocket_observation_time = None 
+
 
     def rocketPhysicsTask(self, task):
         rocket_pos = self.rocket.get_position(task.time)
@@ -116,26 +112,28 @@ class Sim(ShowBase):
             else:
                 lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
             self.rocket_model.setQuat(quat)
-        gt_logger.add_scalar("Rocket Position X", x, task.time*100)
-        gt_logger.add_scalar("Rocket Position Y", y, task.time*100)
-        gt_logger.add_scalar("Rocket Position Z", z, task.time*100)
+        self.logger.add_scalar("enu position/x", x, task.time*100)
+        self.logger.add_scalar("enu position/y", y, task.time*100)
+        self.logger.add_scalar("enu position/z", z, task.time*100)
 
-        gt_logger.add_scalar("Rocket Velocity X", rocket_vel[0], task.time*100)
-        gt_logger.add_scalar("Rocket Velocity Y", rocket_vel[1], task.time*100)
-        gt_logger.add_scalar("Rocket Velocity Z", rocket_vel[2], task.time*100)
+        self.logger.add_scalar("enu velocity/x", rocket_vel[0], task.time*100)
+        self.logger.add_scalar("enu velocity/y", rocket_vel[1], task.time*100)
+        self.logger.add_scalar("enu velocity/z", rocket_vel[2], task.time*100)
 
-        gt_logger.add_scalar("Rocket Acceleration X", rocket_accel[0], task.time*100)
-        gt_logger.add_scalar("Rocket Acceleration Y", rocket_accel[1], task.time*100)
-        gt_logger.add_scalar("Rocket Acceleration Z", rocket_accel[2], task.time*100)
+        self.logger.add_scalar("enu accel/x", rocket_accel[0], task.time*100)
+        self.logger.add_scalar("enu accel/y", rocket_accel[1], task.time*100)
+        self.logger.add_scalar("enu accel/z", rocket_accel[2], task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
             az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos)
-            gt_logger.add_scalar("Rocket Azimuth", az_new, task.time*100)
-            gt_logger.add_scalar("Rocket Altitude", alt_new, task.time*100)
-            az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
-            alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
-            gt_logger.add_scalar("Rocket Azimuth Derivative", az_derivative, task.time*100)
-            gt_logger.add_scalar("Rocket Altitude Derivative", alt_derivative, task.time*100)
+            self.logger.add_scalar("bearing/azimuth", az_new, task.time*100)
+            self.logger.add_scalar("bearing/altitude", alt_new, task.time*100)
+
+            pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(task.time)
+            self.logger.add_scalar("pixel position/x", pixel_x, task.time*100)
+            self.logger.add_scalar("pixel position/y", pixel_y, task.time*100)
+            # az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
+            # alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
         self.prev_rocket_position = rocket_pos
         self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
@@ -155,7 +153,7 @@ class Sim(ShowBase):
         return img
     
     def getGroundTruthRocketPixelCoordinates(self, time):
-        t_azi, t_alt  = T.read_position()
+        t_azi, t_alt  = self.telescope.read_position()
         az, alt = np.deg2rad(t_azi), np.deg2rad(t_alt)
         alt_rotation = np.array([
             [1,  0,  0],
