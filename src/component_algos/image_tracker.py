@@ -33,6 +33,7 @@ class ImageTracker:
 
         raises NoKeypointsFoundError if no keypoints are found in the image
         '''
+
         gray_resized = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         gray_resized = cv.resize(gray_resized, np.array(gray_resized.shape[::-1])//self.scale_factor) # resize to make computation faster
         keypoints, descriptions = self.feature_detector.detectAndCompute(gray_resized,None)
@@ -68,5 +69,7 @@ class ImageTracker:
                 new_feature = Feature(descriptions[i], keypoint.size)
         self.target_feature = new_feature
         pixel_loc = np.array(new_pos) * self.scale_factor
+
+        cv.circle(img, tuple(pixel_loc), 10, (0,255,0), 2)
 
         return pixel_loc[1], pixel_loc[0]
