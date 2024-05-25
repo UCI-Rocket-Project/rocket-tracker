@@ -1,7 +1,6 @@
 from simulation.flight_model import test_flight
-from rocket_filter import RocketFilter
+from src.component_algos.rocket_filter import RocketFilter
 import numpy as np
-from matplotlib import pyplot as plt
 import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
 from scipy.spatial.transform import Rotation as R
