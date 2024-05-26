@@ -95,10 +95,16 @@ class RocketFilter:
         we could also add measurements of the rocket's apparent size and orientation.
         '''
 
+        rocket_initial_enu_pos = pm.geodetic2enu(*self.pad_geodetic_location, *self.cam_geodetic_location)
         rocket_pos_enu = pm.ecef2enu(*x[:3], *self.cam_geodetic_location)
-        azimuth_bearing = np.arctan2(rocket_pos_enu[1], rocket_pos_enu[0]) + self.initial_cam_orientation[0]
-        elevation_bearing = np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])) + self.initial_cam_orientation[1]
+        initial_pos_xy = rocket_initial_enu_pos[:2]
+        initial_pos_xy /= np.linalg.norm(initial_pos_xy)
+        rocket_pos_xy = rocket_pos_enu[:2]
+        rocket_pos_xy /= np.linalg.norm(rocket_pos_xy)
         
+        theta = np.arcsin(np.linalg.norm(np.cross(initial_pos_xy, rocket_pos_xy)))
+        azimuth_bearing = self.initial_cam_orientation[0] + np.rad2deg(theta)
+        elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
 
         return np.array([
             azimuth_bearing,

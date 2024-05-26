@@ -14,12 +14,12 @@ if __name__ == "__main__":
 
 
     pad_enu_pos = pm.geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
-    azimuth = np.arctan2(pad_enu_pos[1], pad_enu_pos[0])
-    elevation = np.arctan2(pad_enu_pos[2], np.linalg.norm(pad_enu_pos[:2]))
+    azimuth = np.rad2deg(np.arctan2(pad_enu_pos[1], pad_enu_pos[0]))
+    altitude = np.rad2deg(np.arctan2(pad_enu_pos[2], np.linalg.norm(pad_enu_pos[:2])))
     filter = RocketFilter(
         pad_geodetic_pos, 
         cam_geodetic_location, 
-        (azimuth, elevation),
+        (azimuth, altitude),
         writer=writer_pred
     )
 
@@ -54,8 +54,8 @@ if __name__ == "__main__":
         altimeter_noise = np.random.normal(0, 1)
 
         rocket_enu_pos = pm.ecef2enu(*xyz_ecef, *cam_geodetic_location)
-        azimuth = np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0])
-        elevation = np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2]))
+        azimuth = np.rad2deg(np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0]))
+        altitude = np.rad2deg(np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2])))
 
         xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
         writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
@@ -68,9 +68,9 @@ if __name__ == "__main__":
         writer_gt.add_scalar("enu acceleration/y", accel_enu[1], i)
         writer_gt.add_scalar("enu acceleration/z", accel_enu[2], i)
         writer_gt.add_scalar("bearing/azimuth", azimuth, i)
-        writer_gt.add_scalar("bearing/elevation", elevation, i)
+        writer_gt.add_scalar("bearing/altitude",altitude, i)
 
-        filter.predict_update_bearing(t, np.array([azimuth, elevation]))
+        filter.predict_update_bearing(t, np.array([azimuth, altitude]))
 
 
         if t - last_telem > telemetry_period:
@@ -106,8 +106,9 @@ if __name__ == "__main__":
         writer_pred.add_scalar("jerk", filter.x[7], i)
         pred_measurement = filter.hx_bearing(filter.x)
         writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], i)
-        writer_pred.add_scalar("bearing/elevation", pred_measurement[1], i)
+        writer_pred.add_scalar("bearing/altitude", pred_measurement[1], i)
 
         err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
 
     print(f"MSE: {np.mean(err)}, max: {np.max(err)}")
+print("Done")
