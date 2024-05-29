@@ -107,9 +107,7 @@ class Sim(ShowBase):
         rocket_pos_ecef = self.rocket.get_position_ecef(task.time)
         rocket_vel = self.rocket.get_velocity(task.time)
         rocket_accel = self.rocket.get_acceleration(task.time)
-        self.telescope.step(task.time)
         
-        az,alt = self.telescope.read_position()
         rocket_pos_enu = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
         self.rocket_model.setPos(*rocket_pos_enu)
         if self.prev_rocket_position is not None:
@@ -144,6 +142,7 @@ class Sim(ShowBase):
             # az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
             # alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
         launched = int(task.time>=self.launch_time)
+        self.telescope.step(task.time)
 
         geodetic_pos = enu2geodetic(*rocket_pos_enu, *self.cam_geodetic_location)
         self.logger.add_scalar("telemetry/lat", geodetic_pos[0], task.time*100)
