@@ -54,11 +54,11 @@ class Rocket:
         else:
             time -= self.launch_time
         return TelemetryData(
-            gps_lat=test_flight.latitude(time) + np.random.normal(GPS_NOISE_STD),
-            gps_lng=test_flight.longitude(time) + np.random.normal(GPS_NOISE_STD),
-            altimeter_reading=test_flight.z(time) + np.random.normal(ALT_NOISE_STD),
-            accel_x = test_flight.ax(time) + np.random.normal(ACC_NOISE_STD),
-            accel_y = test_flight.ay(time) + np.random.normal(ACC_NOISE_STD),
-            accel_z = test_flight.az(time) + np.random.normal(ACC_NOISE_STD),
+            gps_lat=test_flight.latitude(time) + np.random.normal(0,GPS_NOISE_STD),
+            gps_lng=test_flight.longitude(time) + np.random.normal(0,GPS_NOISE_STD),
+            altimeter_reading=test_flight.z(time) + np.random.normal(0,ALT_NOISE_STD),
+            accel_x = test_flight.ax(time) + np.random.normal(0,ACC_NOISE_STD),
+            accel_y = test_flight.ay(time) + np.random.normal(0,ACC_NOISE_STD),
+            accel_z = test_flight.az(time) + np.random.normal(0,ACC_NOISE_STD),
             time = time
         )
