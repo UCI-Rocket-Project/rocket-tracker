@@ -33,8 +33,8 @@ class Tracker:
         self.launch_detector: LaunchDetector = None # set in update_tracking on first frame
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
-        az = np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
-        alt = np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len)
+        az = -np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
+        alt = -np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len)
         pixel_rot = R.from_euler("ZY", [az, alt], degrees=False)
         initial_rot = R.from_euler("ZY", self.environment.get_telescope_orientation(), degrees=True)
 
@@ -81,7 +81,7 @@ class Tracker:
 
         if pixel_pos is not None:
             az, alt = self._pixel_pos_to_az_alt(pixel_pos)
-            # self.filter.predict_update_bearing(time - self.launch_detector.get_launch_time(), np.array([az, alt]))
+            self.filter.predict_update_bearing(time - self.launch_detector.get_launch_time(), np.array([az, alt]))
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)
