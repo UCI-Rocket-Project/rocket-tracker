@@ -120,6 +120,7 @@ class Sim(ShowBase):
             else:
                 lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos_enu))
             self.rocket_model.setQuat(quat)
+        x,y,z = rocket_pos_enu
         self.logger.add_scalar("enu position/x", x, task.time*100)
         self.logger.add_scalar("enu position/y", y, task.time*100)
         self.logger.add_scalar("enu position/z", z, task.time*100)
