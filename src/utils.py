@@ -20,6 +20,7 @@ class TelemetryData:
     accel_x: float
     accel_y: float
     accel_z: float
+    time: float
 
 def azi_rot_mat(azi: float):
     '''
