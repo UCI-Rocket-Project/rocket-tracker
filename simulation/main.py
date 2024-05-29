@@ -13,7 +13,7 @@ from .rocket import Rocket
 from src.tracker import Tracker
 from src.utils import GroundTruthTrackingData, TelemetryData
 from src.environment import Environment
-from pymap3d import geodetic2enu, enu2geodetic
+from pymap3d import geodetic2enu, enu2geodetic, ecef2enu
 from src.joystick_controller import JoystickController
 import shutil
 print("Removing old runs directory")
@@ -110,7 +110,7 @@ class Sim(ShowBase):
         self.telescope.step(task.time)
         
         az,alt = self.telescope.read_position()
-        rocket_pos_enu = np.array(geodetic2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
+        rocket_pos_enu = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
         self.rocket_model.setPos(*rocket_pos_enu)
         if self.prev_rocket_position is not None:
             quat = Quat()
@@ -184,7 +184,8 @@ class Sim(ShowBase):
             [0,  0,  1]
         ])
 
-        rocket_pos = self.rocket.get_position(time)
+        rocket_pos_ecef = self.rocket.get_position_ecef(time)
+        rocket_pos = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
 
         rocket_cam_pos = alt_rotation.T @ az_rotation.T @ rocket_pos
 
