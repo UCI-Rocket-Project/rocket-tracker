@@ -20,7 +20,7 @@ class Rocket:
             time = 0
         else:
             time -= self.launch_time
-        return np.array([test_flight.x(time), test_flight.y(time), test_flight.z(time)])
+        return np.array([test_flight.x(time), test_flight.y(time), test_flight.z(time) - self.pad_geodetic_pos[2]])
 
     def get_position_ecef(self, time):
         xyz_enu = self.get_position(time)
@@ -44,10 +44,6 @@ class Rocket:
         GPS_NOISE_STD = 0#1e-4
         ALT_NOISE_STD = 0#10
         ACC_NOISE_STD = 0#1e-2
-
-        xyz = self.get_position(time)
-
-        gps_pos = pm.enu2geodetic(*xyz, *self.initial_position)
 
         if time < self.launch_time:
             time = 0
