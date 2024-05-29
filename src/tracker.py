@@ -96,12 +96,12 @@ class Tracker:
         az, alt = self._ecef_to_az_alt(ecef_pos)
         current_az, current_alt = self.environment.get_telescope_orientation()
 
-        enu_pos = pm.ecef2enu(*ecef_pos, *self.environment.get_pad_pos_gps())
+        enu_pos = pm.ecef2enu(*ecef_pos, *self.environment.get_cam_pos_gps())
         self.logger.add_scalar("enu position/x", enu_pos[0], time*100)
         self.logger.add_scalar("enu position/y", enu_pos[1], time*100)
         self.logger.add_scalar("enu position/z", enu_pos[2], time*100)
 
-        enu_next_pos = pm.ecef2enu(*(self.filter.x[:3] + self.filter.x[3:6]), *self.environment.get_pad_pos_gps())
+        enu_next_pos = pm.ecef2enu(*(self.filter.x[:3] + self.filter.x[3:6]), *self.environment.get_cam_pos_gps())
         enu_vel = np.array(enu_next_pos) - np.array(enu_pos)
 
         self.logger.add_scalar("enu velocity/x", enu_vel[0], time*100)
