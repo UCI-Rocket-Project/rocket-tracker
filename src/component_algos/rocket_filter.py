@@ -149,6 +149,11 @@ class RocketFilter:
         dt = time_since_first_update - self.last_update_time
         self.flight_time = time_since_first_update
         self.bearing_ukf.predict(dt)
+        predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
+        self.writer.add_scalar("bearing/azi/predicted", predicted_az, time_since_first_update*100)
+        self.writer.add_scalar("bearing/alt/predicted", predicted_alt, time_since_first_update*100)
+        self.writer.add_scalar("bearing/azi/measured", z[0], time_since_first_update*100)
+        self.writer.add_scalar("bearing/alt/measured", z[1], time_since_first_update*100)
         self.last_update_time = time_since_first_update
         self.bearing_ukf.update(z)
         self.x = self.bearing_ukf.x

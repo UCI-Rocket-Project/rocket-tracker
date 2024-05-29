@@ -28,7 +28,7 @@ class Tracker:
 
         self.initial_cam_orientation = initial_cam_orientation
 
-        self.filter = RocketFilter(environment.get_pad_pos_gps(), environment.get_cam_pos_gps(), initial_cam_orientation)
+        self.filter = RocketFilter(environment.get_pad_pos_gps(), environment.get_cam_pos_gps(), initial_cam_orientation, writer=SummaryWriter("runs/filter"))
         self.img_tracker = ImageTracker()
         self.launch_detector: LaunchDetector = None # set in update_tracking on first frame
 
