@@ -17,7 +17,9 @@ from pymap3d import geodetic2enu, enu2geodetic
 from src.joystick_controller import JoystickController
 import shutil
 print("Removing old runs directory")
-shutil.rmtree("runs")
+if os.path.exists("runs"):
+    shutil.rmtree("runs")
+os.makedirs("runs")
 
 class Sim(ShowBase):
 
@@ -57,22 +59,21 @@ class Sim(ShowBase):
         self.cam_focal_len_pixels = focal_len_pixels
         self.camLens.setFov(self.camera_fov)
         self.telescope = SimTelescope(-69.62, 0)
+        # camera is at (0,0,0) but that's implicit
 
-        pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
-        cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
-
-        pad_loc_enu = geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
+        self.pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
+        self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
         self.logger = SummaryWriter("runs/ground_truth")
         self.launch_time = 10
-        self.rocket = Rocket(pad_loc_enu, self.launch_time)
+        self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         self.telem = telem
 
         class SimulationEnvironment(Environment):
             def __init__(env_self):
-                super().__init__(pad_geodetic_pos, cam_geodetic_location, camera_res, focal_len_pixels)
+                super().__init__(self.pad_geodetic_pos, self.cam_geodetic_location, camera_res, focal_len_pixels)
 
             def get_telescope_orientation(env_self) -> tuple[float, float]:
                 return self.telescope.read_position()
@@ -103,21 +104,21 @@ class Sim(ShowBase):
 
 
     def rocketPhysicsTask(self, task):
-        rocket_pos = self.rocket.get_position(task.time)
+        rocket_pos_ecef = self.rocket.get_position_ecef(task.time)
         rocket_vel = self.rocket.get_velocity(task.time)
         rocket_accel = self.rocket.get_acceleration(task.time)
         self.telescope.step(task.time)
         
         az,alt = self.telescope.read_position()
-        x,y,z = rocket_pos
-        self.rocket_model.setPos(x,y,z)
+        rocket_pos_enu = np.array(geodetic2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
+        self.rocket_model.setPos(*rocket_pos_enu)
         if self.prev_rocket_position is not None:
             quat = Quat()
             # if difference is low enough, just look straight up. Without this, it flips around at the start of the flight
-            if np.linalg.norm(rocket_pos-self.prev_rocket_position) < 1e-1:
+            if np.linalg.norm(rocket_pos_enu-self.prev_rocket_position) < 1e-1:
                 lookAt(quat, Vec3(0,1,0),Vec3(0,0,0))
             else:
-                lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos))
+                lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos_enu))
             self.rocket_model.setQuat(quat)
         self.logger.add_scalar("enu position/x", x, task.time*100)
         self.logger.add_scalar("enu position/y", y, task.time*100)
@@ -132,7 +133,7 @@ class Sim(ShowBase):
         self.logger.add_scalar("enu accel/z", rocket_accel[2], task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
-            az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos)
+            az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos_enu)
             self.logger.add_scalar("bearing/azimuth", az_new, task.time*100)
             self.logger.add_scalar("bearing/altitude", alt_new, task.time*100)
 
@@ -143,8 +144,13 @@ class Sim(ShowBase):
             # alt_derivative = (alt_new-alt_old)/(task.time-self.prev_rocket_observation_time)
         launched = int(task.time>=self.launch_time)
 
+        geodetic_pos = enu2geodetic(*rocket_pos_enu, *self.cam_geodetic_location)
+        self.logger.add_scalar("telemetry/lat", geodetic_pos[0], task.time*100)
+        self.logger.add_scalar("telemetry/lng", geodetic_pos[1], task.time*100)
+        self.logger.add_scalar("telemetry/alt", geodetic_pos[2], task.time*100)
+
         self.logger.add_scalar("launched", launched, task.time*100)
-        self.prev_rocket_position = rocket_pos
+        self.prev_rocket_position = rocket_pos_enu
         self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
         return Task.cont
