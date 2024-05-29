@@ -111,7 +111,6 @@ class Tracker:
         self.logger.add_scalar("bearing/azimuth", az, time*100)
         self.logger.add_scalar("bearing/altitude", alt, time*100)
 
-        # az, alt = self._pixel_pos_to_az_alt(pixel_pos) # temporary override
         az_err = current_az - az
         alt_err = current_alt - alt
 
