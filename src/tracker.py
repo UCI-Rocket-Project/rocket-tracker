@@ -111,15 +111,15 @@ class Tracker:
         self.logger.add_scalar("bearing/azimuth", az, time*100)
         self.logger.add_scalar("bearing/altitude", alt, time*100)
 
-        az, alt = self._pixel_pos_to_az_alt(pixel_pos) # temporary override
+        # az, alt = self._pixel_pos_to_az_alt(pixel_pos) # temporary override
         az_err = current_az - az
         alt_err = current_alt - alt
 
-        self.logger.add_scalar("mount/azimuth", az, time*100)
-        self.logger.add_scalar("mount/altitude", alt, time*100)
+        self.logger.add_scalar("mount/actual_azimuth", current_az, time*100)
+        self.logger.add_scalar("mount/actual_altitude", current_alt, time*100)
 
-        input_x = self.x_controller.step(az_err)
-        input_y = self.y_controller.step(alt_err)
+        input_x = self.x_controller.step(-az_err)
+        input_y = self.y_controller.step(-alt_err)
         MAX_SLEW_RATE_AZI = 5 
         MAX_SLEW_RATE_ALT = 10
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
