@@ -43,13 +43,7 @@ class Tracker:
         return az, alt
 
     def _ecef_to_az_alt(self, ecef_pos: np.ndarray) -> tuple[float,float]:
-        pos_enu = pm.ecef2enu(*ecef_pos, *self.environment.get_cam_pos_gps())
-        azimuth_bearing = np.arctan2(pos_enu[1], pos_enu[0]) + self.initial_cam_orientation[0]
-        elevation_bearing = np.arctan2(pos_enu[2], np.linalg.norm(pos_enu[:2])) + self.initial_cam_orientation[1]
-        return (
-            azimuth_bearing,
-            elevation_bearing
-        )
+        return self.filter.hx_bearing(ecef_pos)
 
     def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float):
         '''
@@ -87,12 +81,15 @@ class Tracker:
 
         if pixel_pos is not None:
             az, alt = self._pixel_pos_to_az_alt(pixel_pos)
-            self.filter.predict_update_bearing(time - self.launch_detector.get_launch_time(), np.array([az, alt]))
+            # self.filter.predict_update_bearing(time - self.launch_detector.get_launch_time(), np.array([az, alt]))
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)
             alt = telem_measurements.altimeter_reading
             z = np.array([*ecef_pos, alt])
+            self.logger.add_scalar("telemetry/lat", telem_measurements.gps_lat, time*100)
+            self.logger.add_scalar("telemetry/lng", telem_measurements.gps_lng, time*100)
+            self.logger.add_scalar("telemetry/alt", telem_measurements.altimeter_reading, time*100)
             self.filter.predict_update_telem(time - self.launch_detector.get_launch_time(), z)
 
         ecef_pos = self.filter.x[:3]
