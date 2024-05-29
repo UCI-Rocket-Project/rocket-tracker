@@ -87,8 +87,8 @@ class Sim(ShowBase):
             def get_camera_image(env_self) -> np.ndarray:
                 return self.getImage()
 
-            def get_ground_truth_pixel_loc(env_self, time: float) -> tuple[int,int]:
-                return self.getGroundTruthRocketPixelCoordinates(time)
+            # def get_ground_truth_pixel_loc(env_self, time: float) -> tuple[int,int]:
+            #     return self.getGroundTruthRocketPixelCoordinates(time)
 
             def get_telemetry(env_self) -> TelemetryData:
                 return self.telem # updated in rocketPhysicsTask
