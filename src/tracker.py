@@ -5,7 +5,7 @@ import numpy as np
 from .utils import TelemetryData
 from .environment import Environment
 from .component_algos.rocket_filter import RocketFilter
-from .component_algos.image_tracker import ImageTracker, NoKeypointsFoundError
+from .component_algos.image_tracker import ImageTracker, NoDetectionError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
@@ -58,8 +58,8 @@ class Tracker:
             pixel_pos = self.environment.get_ground_truth_pixel_loc(time)
         else:
             try:
-                pixel_pos = self.img_tracker.estimate_pos(img)
-            except NoKeypointsFoundError:
+                pixel_pos = self.img_tracker.estimate_pos(img)[:2]
+            except NoDetectionError:
                 pixel_pos = None
         cv.circle(img, pixel_pos, 10, (0,255,0), 2)
         
