@@ -125,9 +125,8 @@ class Tracker:
         MAX_SLEW_RATE_AZI = 8 
         MAX_SLEW_RATE_ALT = 6
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
-        y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
-        if current_alt <= 0:
-            y_clipped = 0
+        min_y_input = 0 if current_alt <=0 else -MAX_SLEW_RATE_ALT
+        y_clipped = np.clip(input_y,-min_y_input,MAX_SLEW_RATE_ALT)
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
