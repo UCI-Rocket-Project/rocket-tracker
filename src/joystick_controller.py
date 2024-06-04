@@ -54,18 +54,20 @@ class JoystickController:
         if not self.tracking:
             self.tracker = Tracker(self.environment, self.environment.get_telescope_orientation(), self.logger)
         self.tracking = not self.tracking
-
+    
+    def _toggle_recording(self):
+        if not self.recording:
+            # start recording
+            self.video_writer = cv.VideoWriter(f"video_{strftime('%m_%m_%d-%H:%M')}.avi", cv.VideoWriter_fourcc(*'MJPG'), 10, (1920,1080))
+        else:
+            # stop recording
+            self.video_writer.release()
+            self.video_writer = None
+        self.recording = not self.recording
         
     def _handle_button_press(self,button: int):
         if button == BUTTON_CIRCLE:
-            if not self.recording:
-                # start recording
-                self.video_writer = cv.VideoWriter(f"video_{strftime('%m_%m_%d-%H:%M')}.avi", cv.VideoWriter_fourcc(*'MJPG'), 10, (1920,1080))
-            else:
-                # stop recording
-                self.video_writer.release()
-                self.video_writer = None
-            self.recording = not self.recording
+            self._toggle_recording()
         
         elif button == BUTTON_RIGHT_BUMPER:
             self.gain += 100
