@@ -9,7 +9,7 @@ class Rocket:
         pad_geodetic_pos: np.ndarray of length 3, [lat, lon, alt]
         '''
         self.pad_geodetic_pos = pad_geodetic_pos
-        self.initial_alt = test_flight.z(0)
+        self.initial_alt = test_flight.z(0) - pad_geodetic_pos[2]
         self.launch_time = launch_time
 
     def get_position(self, time):
@@ -20,7 +20,7 @@ class Rocket:
             time = 0
         else:
             time -= self.launch_time
-        return np.array([test_flight.x(time), test_flight.y(time), test_flight.z(time) - self.pad_geodetic_pos[2]])
+        return np.array([test_flight.x(time), test_flight.y(time), test_flight.z(time) - self.pad_geodetic_pos[2] - self.initial_alt])
 
     def get_position_ecef(self, time):
         xyz_enu = self.get_position(time)

@@ -10,7 +10,7 @@ from rocketpy import (
     CylindricalTank,
 )
 
-SIMULATE_WIND = False
+SIMULATE_WIND = True
 
 ## Environment
 date_info = (2023, 4, 29, 23)  # Launch Date, Hour given in UTC time
@@ -19,6 +19,7 @@ geodetic = [35.347104, -117.808953, 620]
 
 EnvGFS = Environment(date=date_info, latitude=geodetic[0], longitude=geodetic[1], elevation=geodetic[2], datum='NAD83')
 if SIMULATE_WIND:
+    print("Simulating wind")
     EnvGFS.set_atmospheric_model(type="Windy", file="GFS")
 else:
     print("Not simulating wind")
