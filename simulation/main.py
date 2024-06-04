@@ -10,11 +10,10 @@ from direct.task import Task
 from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
 
 from .rocket import Rocket
-from src.tracker import Tracker
-from src.utils import GroundTruthTrackingData, TelemetryData
+from src.utils import TelemetryData
 from src.environment import Environment
-from pymap3d import geodetic2enu, enu2geodetic, ecef2enu
-from joystick_commander import JoystickCommander
+from pymap3d import enu2geodetic, ecef2enu
+from src.joystick_commander import JoystickCommander
 import shutil
 print("Removing old runs directory")
 if os.path.exists("runs"):
