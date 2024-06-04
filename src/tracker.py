@@ -72,6 +72,9 @@ class Tracker:
             if not self.launch_detector.has_detected_launch():
                 self.launch_detector.update(pixel_pos, time)
 
+        if self.launch_detector is None:
+            raise RuntimeError("Need to see rocket in first frame to start tracking, no rocket found.")
+
         if not self.launch_detector.has_detected_launch():
             self.logger.add_scalar("launched", 0, time*100)
             return
@@ -123,6 +126,8 @@ class Tracker:
         MAX_SLEW_RATE_ALT = 6
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
+        if current_alt <= 0:
+            y_clipped = 0
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
