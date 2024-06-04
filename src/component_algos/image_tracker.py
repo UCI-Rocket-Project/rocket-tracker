@@ -33,6 +33,7 @@ class ImageTracker:
             raise NoDetectionError("No ID found in YOLO detections")
 
         found_box = None
+        found_id = None
         for conf, cls, xyxy, id in zip(yolo_results.boxes.conf, yolo_results.boxes.cls, yolo_results.boxes.xyxy, yolo_results.boxes.id):
             x1, y1, x2, y2 = xyxy.int().tolist()
             cx = img.shape[1]//2
@@ -40,8 +41,13 @@ class ImageTracker:
             if self.tracked_id is None and x1<cx<x2 and y1<cy<y2:
                 self.tracked_id = id
                 
-            if id == self.tracked_id:
+            if x2-x1 < 100:
                 found_box = xyxy.int().tolist()
+                found_id = id
+            else:
+                cv.rectangle(img, (x1,y1), (x2,y2), (0, 0, 255), 2)
+                cv.putText(img, f"ID: {id}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                
             
         if found_box is None:
             raise NoDetectionError("No tracked ID found in YOLO detections")
@@ -49,6 +55,7 @@ class ImageTracker:
         # draw box
         x1, y1, x2, y2 = found_box
         cv.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
+        cv.putText(img, f"ID: {found_id}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         box_xywh = ((x1+x2)//2, (y1+y2)//2, x2-x1, y2-y1)
         return box_xywh
         
