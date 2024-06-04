@@ -23,7 +23,7 @@ BUTTON_RIGHT_BUMPER = 5
 BUTTON_LEFT_TRIGGER = 6
 BUTTON_RIGHT_TRIGGER = 7
 
-class JoystickController:
+class JoystickCommander:
     def __init__(self, environment: Environment, logger: SummaryWriter):
         self.environment  = environment
         pygame.init()

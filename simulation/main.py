@@ -14,7 +14,7 @@ from src.tracker import Tracker
 from src.utils import GroundTruthTrackingData, TelemetryData
 from src.environment import Environment
 from pymap3d import geodetic2enu, enu2geodetic, ecef2enu
-from src.joystick_controller import JoystickController
+from joystick_commander import JoystickCommander
 import shutil
 print("Removing old runs directory")
 if os.path.exists("runs"):
@@ -95,7 +95,7 @@ class Sim(ShowBase):
             
         estimate_logger = SummaryWriter("runs/estimate")
         
-        self.controller = JoystickController(SimulationEnvironment(), estimate_logger)
+        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger)
 
         self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
