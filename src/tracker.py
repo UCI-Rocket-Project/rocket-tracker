@@ -21,8 +21,8 @@ class Tracker:
         self.camera_res = environment.get_camera_resolution()
         self.focal_len = environment.get_focal_length()
         self.logger = logger
-        self.x_controller = PIDController(10,0,1)
-        self.y_controller = PIDController(10,0,1)
+        self.x_controller = PIDController(5,1,1)
+        self.y_controller = PIDController(5,1,1)
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
 
@@ -119,8 +119,8 @@ class Tracker:
 
         input_x = self.x_controller.step(-az_err)
         input_y = self.y_controller.step(-alt_err)
-        MAX_SLEW_RATE_AZI = 5 
-        MAX_SLEW_RATE_ALT = 10
+        MAX_SLEW_RATE_AZI = 8 
+        MAX_SLEW_RATE_ALT = 6
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
         y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
         self.environment.move_telescope(x_clipped, y_clipped)
