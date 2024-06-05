@@ -10,7 +10,7 @@ from rocketpy import (
     CylindricalTank,
 )
 
-SIMULATE_WIND = False
+SIMULATE_WIND = True
 
 ## Environment
 date_info = (2023, 4, 29, 23)  # Launch Date, Hour given in UTC time
