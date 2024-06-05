@@ -1,5 +1,5 @@
 import numpy as np
-from simulation.utils import TelemetryData
+from .utils import TelemetryData
 from environment import Environment
 from zwo_asi import ASICamera
 from zwo_eaf import EAF, getEAFID
