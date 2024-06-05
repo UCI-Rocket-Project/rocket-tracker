@@ -48,7 +48,7 @@ class ImageTracker:
                 self.tracked_id = id
                 self.reset_tracking = False
                 
-            if x2-x1 < 100:
+            if x2-x1 < 100 and conf >= found_conf:
                 found_box = xyxy.int().tolist()
                 found_id = id
                 found_conf = conf
