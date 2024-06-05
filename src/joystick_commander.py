@@ -45,14 +45,14 @@ class JoystickCommander:
         self.gain = 0
         self.exposure = 1/30
 
-        self.tracker = None
+        self.logger = logger
+        self.tracker = Tracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
 
-        self.logger = logger
     
     def _toggle_tracking(self):
         if not self.tracking:
-            self.tracker = Tracker(self.environment, self.environment.get_telescope_orientation(), self.logger)
+            self.tracker.start_tracking(self.environment.get_telescope_orientation())
         self.tracking = not self.tracking
     
     def _toggle_recording(self):
@@ -175,15 +175,16 @@ class JoystickCommander:
         self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
-        if self.tracking:
-            self.tracker.update_tracking(
-                img,
-                self.environment.get_telemetry(),
-                time
-            )
-        else:
-            if self.has_joystick:
-                self._joystick_control()
+
+        self.tracker.update_tracking(
+            img,
+            self.environment.get_telemetry(),
+            time,
+            self.tracking
+        )
+
+        if self.has_joystick and not self.tracking:
+            self._joystick_control()
         
         # important: this has side effects on `img` so it has to be after the tracker update
         img_debug_callback(img)

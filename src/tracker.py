@@ -14,7 +14,6 @@ import cv2 as cv
 class Tracker:
     def __init__(self, 
                 environment: Environment,
-                initial_cam_orientation: tuple[float,float],
                 logger: SummaryWriter, 
                 ):
 
@@ -26,11 +25,8 @@ class Tracker:
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
 
-        self.initial_cam_orientation = initial_cam_orientation
-
-        self.filter = RocketFilter(environment.get_pad_pos_gps(), environment.get_cam_pos_gps(), initial_cam_orientation, writer=SummaryWriter("runs/filter"))
         self.img_tracker = ImageTracker()
-        self.launch_detector: LaunchDetector = None # set in update_tracking on first frame
+        self.active_tracking = False
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
         az = -np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
@@ -44,8 +40,15 @@ class Tracker:
 
     def _ecef_to_az_alt(self, ecef_pos: np.ndarray) -> tuple[float,float]:
         return self.filter.hx_bearing(ecef_pos)
+    
+    def start_tracking(self, initial_cam_orientation: tuple[float,float]):
+        self.initial_cam_orientation = initial_cam_orientation
+        self.filter = RocketFilter(self.environment.get_pad_pos_gps(), self.gps_pos, self.initial_cam_orientation, writer=SummaryWriter("runs/filter"))
+        self.launch_detector = None
+        self.active_tracking = True
+        self.img_tracker.start_new_tracking()
 
-    def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float):
+    def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float, control_scope: bool):
         '''
         `img`: image from camera
         `global_step`: current time step (for logging)
@@ -62,6 +65,9 @@ class Tracker:
             except NoDetectionError:
                 pixel_pos = None
         cv.circle(img, pixel_pos, 10, (0,255,0), 2)
+
+        if not self.active_tracking:
+            return
         
         if pixel_pos is not None:
             self.logger.add_scalar("pixel position/x", pixel_pos[0], time*100)
@@ -119,6 +125,9 @@ class Tracker:
 
         self.logger.add_scalar("mount/actual_azimuth", current_az, time*100)
         self.logger.add_scalar("mount/actual_altitude", current_alt, time*100)
+
+        if not control_scope:
+            return 
 
         input_x = self.x_controller.step(-az_err)
         input_y = self.y_controller.step(-alt_err)
