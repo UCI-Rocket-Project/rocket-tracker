@@ -5,7 +5,7 @@ from .component_algos.image_tracker import ImageTracker, NoDetectionError
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-class Tracker:
+class VisionOnlyTracker:
     def __init__(self, 
                 environment: Environment,
                 logger: SummaryWriter
@@ -19,10 +19,11 @@ class Tracker:
         self.img_tracker = ImageTracker()
 
     
-    def start_tracking(self, initial_cam_orientation: tuple[float,float]):
+    def start_tracking(self, _initial_cam_orientation: tuple[float,float]):
+        # need second arg to match Tracker.start_tracking
         self.img_tracker.start_new_tracking()
 
-    def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float, control_scope: bool):
+    def update_tracking(self, img: np.ndarray, _telem_measurements: TelemetryData, time: float, control_scope: bool):
         '''
         `img`: image from camera
         `global_step`: current time step (for logging)
@@ -30,6 +31,7 @@ class Tracker:
         `pos_estimate`: estimated position of rocket relative to the mount, where the mount 
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
         '''
+        # needs 2nd arg to match Tracker.update_tracking
 
         try:
             pixel_pos = self.img_tracker.estimate_pos(img)[:2]

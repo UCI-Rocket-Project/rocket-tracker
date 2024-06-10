@@ -1,10 +1,12 @@
 from .joystick_commander import JoystickCommander
 from .irl_environment import IRLEnvironment
+from torch.utils.tensorboard import SummaryWriter
 from time import time
 
 if __name__ == '__main__':
     env = IRLEnvironment()
-    commander = JoystickCommander(env)
+    logger = SummaryWriter('runs/irl')
+    commander = JoystickCommander(env, logger, vision_only=True)
     start_time = time()
     try:
         while 1:

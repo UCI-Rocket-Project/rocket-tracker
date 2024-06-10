@@ -1,5 +1,6 @@
 from .environment import Environment
 from .tracker import Tracker
+from .vision_only_tracker import VisionOnlyTracker
 import pygame
 import cv2 as cv
 import numpy as np
@@ -24,7 +25,7 @@ BUTTON_LEFT_TRIGGER = 6
 BUTTON_RIGHT_TRIGGER = 7
 
 class JoystickCommander:
-    def __init__(self, environment: Environment, logger: SummaryWriter):
+    def __init__(self, environment: Environment, logger: SummaryWriter, vision_only = False):
         self.environment  = environment
         pygame.init()
         pygame.joystick.init()
@@ -46,7 +47,7 @@ class JoystickCommander:
         self.exposure = 1/30
 
         self.logger = logger
-        self.tracker = Tracker(self.environment, self.logger)
+        self.tracker = Tracker(self.environment, self.logger) if not vision_only else VisionOnlyTracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
 
     
