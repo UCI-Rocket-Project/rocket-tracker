@@ -1,4 +1,8 @@
-# Rocket Tracker
+# Rocket 
+
+https://github.com/UCI-Rocket-Project/rocket-tracker/assets/48658337/dc37688a-6238-4536-a412-5151f483befc
+
+Tracker
 
 Repo for the code for the rocket tracker, including drivers for the tripod mount and camera, and simulation of both the hardware and algorithm.
 
