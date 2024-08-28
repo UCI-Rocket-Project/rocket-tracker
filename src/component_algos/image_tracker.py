@@ -1,6 +1,8 @@
 import numpy as np
 import cv2 as cv
-from ultralytics import YOLO
+from deepsparse import Pipeline
+from deepsparse.yolo import YOLOOutput
+
 from dataclasses import dataclass
 import os
 
@@ -16,7 +18,11 @@ class NoDetectionError(RuntimeError):
 
 class ImageTracker:
     def __init__(self):
-        self.model = YOLO(f"{CURRENT_FILEPATH}/rocket_yolov8n.pt")
+        self.yolo_pipeline = Pipeline.create(
+            task="yolov8",
+            model_path=f"{CURRENT_FILEPATH}/rocket_yolov8n.onnx",   # sparsezoo stub or path to local ONNX
+        )
+
         self.tracked_id = None
         self.reset_tracking = False
 
@@ -29,44 +35,32 @@ class ImageTracker:
         Returns bounding box [center_x, center_y, width, height] of the highest confidence detection
         '''
 
-        yolo_results = self.model.track(img, verbose=False, persist=True)[0]
+        # TODO: add tracking on top of this. See previous file history for how the logic for handling tracking ids was done.
+        # DeepSparse doesn't support tracking yet, so we'll have to implement it ourselves.
 
-        if len(yolo_results) == 0:
+        yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])#self.model.track(img, verbose=False, persist=True)[0]
+
+        boxes = yolo_results.boxes[0]
+        scores = yolo_results.scores[0]
+        if len(boxes) == 0:
             raise NoDetectionError("No YOLO detections found in image")
 
-        if yolo_results.boxes.id is None:
-            raise NoDetectionError("No ID found in YOLO detections")
 
-        found_box = None
-        found_id = None
-        found_conf = 0
-        for conf, cls, xyxy, id in zip(yolo_results.boxes.conf, yolo_results.boxes.cls, yolo_results.boxes.xyxy, yolo_results.boxes.id):
-            x1, y1, x2, y2 = xyxy.int().tolist()
-            cx = img.shape[1]//2
-            cy = img.shape[0]//2
-            if self.reset_tracking and self.tracked_id is None and x1<cx<x2 and y1<cy<y2:
-                self.tracked_id = id
-                self.reset_tracking = False
-                
-            if x2-x1 < 100 and conf >= found_conf:
-                found_box = xyxy.int().tolist()
-                found_id = id
-                found_conf = conf
-            color = (255,0,0) if self.tracked_id is None else (0,0,255) # blue if not tracking, red if tracking
+        ret = None
+        ret_idx = np.argmax(scores)
+        for i in range(len(boxes)):
+            x1, y1, x2, y2 = np.array(boxes[i]).astype(int)
+            x1 = np.clip(x1, 0, img.shape[1])
+            y1 = np.clip(y1, 0, img.shape[0])
+            x2 = np.clip(x2, 0, img.shape[1])
+            y2 = np.clip(y2, 0, img.shape[0])
+
+            box_xywh = ((x1+x2)//2, (y1+y2)//2, x2-x1, y2-y1)
+            color = (255,0,0) if i==ret_idx else (0,0,255)
+            if i == ret_idx:
+                ret = box_xywh
+            cv.putText(img, f"{scores[i]:.2f}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             cv.rectangle(img, (x1,y1), (x2,y2), color, 2)
-            cv.putText(img, f"ID: {id}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-                
-            
-        if found_box is None:
-            raise NoDetectionError("No tracked ID found in YOLO detections")
-        
-        if self.tracked_id is None:
-            raise NoDetectionError("Haven't set tracked ID yet")
-
-        # draw box
-        x1, y1, x2, y2 = found_box
-        cv.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
-        cv.putText(img, f"ID: {found_id}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        box_xywh = ((x1+x2)//2, (y1+y2)//2, x2-x1, y2-y1)
-        return box_xywh
-        
+        if np.max(scores) < 0.6: # TODO: instead of doing this, let the kalman filter reject low-confidence boxes that don't match the predictions
+            raise NoDetectionError("No high confidence detection found in image")
+        return ret
