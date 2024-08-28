@@ -1,7 +1,10 @@
-alpyca
 opencv-python
 matplotlib
 # torch # (cpu install: `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu`)
 tensorboard
 filterpy
 rocketpy
+panda3d
+pymap3d
+ultralytics
+pygame
