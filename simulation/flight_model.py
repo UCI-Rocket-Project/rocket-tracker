@@ -109,7 +109,7 @@ COPV = MassFlowRateBasedTank(
     flux_time = burntiempo,
 
     gas=LNGTankPressurizingGas,
-    initial_gas_mass=(COPVVol*PressurizingGas.density)/2,
+    initial_gas_mass=(COPVVol*LNGTankPressurizingGas.density)/2,
 
     liquid = LNGTankPressurizingGas,
     initial_liquid_mass = 0,
