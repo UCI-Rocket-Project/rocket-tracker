@@ -1,10 +1,4 @@
-bin
-include
-lib
-lib64
-share
-pyvenv.cfg
-Scripts
+venv
 
 __pycache__
 
