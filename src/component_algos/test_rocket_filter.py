@@ -5,6 +5,12 @@ import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
 from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.widgets import Slider
+
+def format_numpy(x):
+    return ", ".join([f"{i:.2f}" for i in x])
 
 if __name__ == "__main__":
     pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
@@ -34,6 +40,9 @@ if __name__ == "__main__":
     telemetry_period = 1
     last_telem = start_time
     err = []
+
+    plot_data = []
+
     for i,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
         xyz_geodetic = test_flight.latitude(t), test_flight.longitude(t), test_flight.z(t)
         xyz_ecef = pm.geodetic2ecef(*xyz_geodetic)
@@ -110,5 +119,93 @@ if __name__ == "__main__":
 
         err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
 
+        def make_plot_data():
+            # make 3d plot of rocket path
+            copy_filter = filter.copy()
+
+            actual_path = []
+            projected_path = []
+            actual_vel  =[]
+            projected_vel = []
+            for future_t in np.linspace(t, end_time, samples-i):
+                xyz_geodetic = test_flight.latitude(future_t), test_flight.longitude(future_t), test_flight.z(future_t)
+                xyz_ecef = pm.geodetic2ecef(*xyz_geodetic)
+                xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
+                v_enu = test_flight.vx(future_t), test_flight.vy(future_t), test_flight.vz(future_t)
+                actual_path.append(np.array(xyz_enu))
+                actual_vel.append(np.array(v_enu))
+                
+                pred_ecef = copy_filter.x[:3]
+                pred_enu = pm.ecef2enu(*pred_ecef, *start_geodetic)
+
+                pred_vel_ecef = copy_filter.x[3:6]
+                pred_vel_enu = pm.ecef2enu(*(pred_vel_ecef+start_ecef), *start_geodetic)
+                projected_path.append(np.array(pred_enu))
+                projected_vel.append(np.array(pred_vel_enu))
+                try:
+                    copy_filter.predict(future_t)
+                    # copy_filter.x = copy_filter.fx(copy_filter.x, dt)
+                except np.linalg.LinAlgError:
+                    print("Singular matrix")
+                    break
+            
+            plot_data.append((t, actual_path, projected_path, actual_vel, projected_vel, pred_vel_enu))
+
+        make_plot_data()
+    print(len(plot_data))
+
+    t, actual_path, projected_path, actual_vel, projected_vel, pred_vel_enu = plot_data[0]
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_title(f'Rocket path at t={t:.2f}s. Predicted velocity is {format_numpy(pred_vel_enu)}')
+    actual_position_marker = ax.scatter(*actual_path[0], color='C0', s=10)
+    actual_path_line = ax.plot(*zip(*actual_path), label="actual path")
+    projected_position_marker = ax.scatter(*projected_path[0], color='C1', s=10)
+    projected_path_line = ax.plot(*zip(*projected_path), label="projected path")
+
+
+
+    # arrows for velocity
+    actual_path_quivers =  [
+        ax.quiver(*pos, *(3*vel), color='C0') for pos, vel in zip(actual_path[::10], actual_vel[::10])
+    ]
+
+    projected_path_quivers = [
+        ax.quiver(*pos, *(3*vel), color='C1') for pos, vel in zip(projected_path[::10], projected_vel[::10])
+    ]
+
+    cam_pos_enu = pm.geodetic2enu(*cam_geodetic_location, *start_geodetic)
+    direction_vector =  actual_path[0] - cam_pos_enu
+    bearing_quiver = [ax.quiver(*cam_pos_enu, *direction_vector*5, color='C2', label='bearing')]
+
+    ax_slider = plt.axes([0.25, 0.02, 0.5, 0.03], facecolor='lightgoldenrodyellow')
+    slider = Slider(ax_slider, 'Frequency (w)', 0, samples, valinit=0, valstep=1)
+
+    # Update function for the slider
+    def update(val):
+        t_index = int(slider.val)
+        t, actual_path, projected_path, actual_vel, projected_vel, pred_vel_enu = plot_data[t_index]
+
+        
+        
+        projected_path_line[0].set_data_3d(*zip(*projected_path))
+        for i, (pos, vel) in enumerate(zip(projected_path[::10], projected_vel[::10])):
+            projected_path_quivers[i].remove()
+            projected_path_quivers[i] = ax.quiver(*pos, *(3*vel), color='C1')
+        actual_position_marker._offsets3d = actual_path[0][:,None]
+        bearing_quiver[0].remove()
+        direction_vector =  actual_path[0] - cam_pos_enu
+        bearing_quiver[0] = ax.quiver(*cam_pos_enu, *direction_vector*5, color='C2', label='bearing')
+        projected_position_marker._offsets3d = projected_path[0][:,None]
+        fig.canvas.draw_idle()
+
+    # Connect the slider to the update function
+    slider.on_changed(update)
+
+    ax.set_xlim(-1000, 1000)
+    ax.set_ylim(-1000, 1000)
+    ax.set_zlim(0, 4000)
+    plt.legend()
+    plt.show()
     print(f"MSE: {np.mean(err)}, max: {np.max(err)}")
-print("Done")
+    print("Done")

@@ -33,9 +33,9 @@ class RocketFilter:
 
         self.last_update_time = 0
 
-        x_dim = 8
-        z_dim = 4
-        self.x = np.empty(x_dim) # state vector
+        self._x_dim = 8
+        self._z_dim = 4
+        self.x = np.empty(self._x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
@@ -50,7 +50,7 @@ class RocketFilter:
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
         process_variances = np.array([1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 0.1, 10])
-        self.Q = np.diag(process_variances) # process noise covariance matrix
+        self.Q = 1e-3*np.diag(process_variances) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
         telem_measurement_variances = np.array([100,100,100,1])
@@ -61,12 +61,12 @@ class RocketFilter:
 
 
         self.telem_ukf = UnscentedKalmanFilter(
-            dim_x=x_dim,
-            dim_z=z_dim,
+            dim_x=self._x_dim,
+            dim_z=self._z_dim,
             dt=1,
             hx=self.hx_telem,
             fx=self.fx,
-            points=MerweScaledSigmaPoints(n=x_dim, alpha=1e-3, beta=2, kappa=0)
+            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
         )
         self.telem_ukf.x = self.x
         self.telem_ukf.P = self.P
@@ -74,12 +74,12 @@ class RocketFilter:
         self.telem_ukf.R = self.R_telem
 
         self.bearing_ukf = UnscentedKalmanFilter(
-            dim_x=x_dim,
+            dim_x=self._x_dim,
             dim_z=2,
             dt=1,
             hx=self.hx_bearing,
             fx=self.fx,
-            points=MerweScaledSigmaPoints(n=x_dim, alpha=1e-3, beta=2, kappa=0)
+            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
         )
         self.bearing_ukf.x = self.x
         self.bearing_ukf.P = self.P
@@ -127,6 +127,7 @@ class RocketFilter:
         '''
         State transition function
         '''
+        x = np.copy(x)
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
         thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
@@ -234,3 +235,49 @@ class RocketFilter:
         _, eigenvectors = np.linalg.eig(Q.T @ Q)
 
         return eigenvectors[:,0] / np.linalg.norm(eigenvectors[:,0])
+
+    def copy(self):
+        '''
+        Create a copy of the filter. Doesn't copy the writer, and updating the copy doesn't update the original
+        '''
+        new_filter = RocketFilter(
+            self.pad_geodetic_location,
+            self.cam_geodetic_location,
+            self.initial_cam_orientation,
+            self.drag_coefficient,
+            None
+        )
+
+        new_filter.x = self.x.copy()
+        new_filter.P = self.P.copy()
+        new_filter.Q = self.Q.copy()
+        new_filter.R_telem = self.R_telem.copy()
+        new_filter.R_bearing = self.R_bearing.copy()
+
+        new_filter.telem_ukf = UnscentedKalmanFilter(
+            dim_x=self._x_dim,
+            dim_z=self._z_dim,
+            dt=1,
+            hx=self.telem_ukf.hx,
+            fx=self.telem_ukf.fx,
+            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
+        )
+        new_filter.telem_ukf.x = self.telem_ukf.x.copy()
+        new_filter.telem_ukf.P = self.telem_ukf.P.copy()
+        new_filter.telem_ukf.Q = self.telem_ukf.Q.copy()
+        new_filter.telem_ukf.R = self.telem_ukf.R.copy()
+
+        new_filter.bearing_ukf = UnscentedKalmanFilter(
+            dim_x=self._x_dim,
+            dim_z=self._z_dim,
+            dt=1,
+            hx=self.bearing_ukf.hx,
+            fx=self.bearing_ukf.fx,
+            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
+        )
+        new_filter.bearing_ukf.x = self.bearing_ukf.x.copy()
+        new_filter.bearing_ukf.P = self.bearing_ukf.P.copy()
+        new_filter.bearing_ukf.Q = self.bearing_ukf.Q.copy()
+        new_filter.bearing_ukf.R = self.bearing_ukf.R.copy()
+
+        return new_filter
