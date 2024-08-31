@@ -5,6 +5,17 @@ from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
+def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from obj to new_obj (side effect)
+    for attr_name in dir(obj):
+        attr = getattr(obj, attr_name)
+        try:
+            if isinstance(attr, float):
+                setattr(new_obj, attr_name, attr)
+            elif isinstance(attr, np.ndarray):
+                setattr(new_obj, attr_name, attr.copy())
+        except AttributeError: # some are @property functions that can't be set
+            pass
+
 class RocketFilter:
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
@@ -27,7 +38,8 @@ class RocketFilter:
 
         self.pad_geodetic_location = pad_geodetic_location
         self.cam_geodetic_location = cam_geodetic_location
-        self.drag_coefficient = drag_coefficient
+        # self.drag_coefficient = drag_coefficient
+        self.drag_coefficient = 0#drag_coefficient
         self.initial_cam_orientation = initial_cam_orientation
         self.writer = writer
 
@@ -39,25 +51,26 @@ class RocketFilter:
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
-        self.x[6] = 10 # linear acceleration
+        self.x[6] = 20 # linear acceleration
         self.x[7] = 5 # linear jerk
 
-        state_variances = np.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01, 5, 2])
+        position_std =  100
+        state_std = np.array([position_std, position_std, position_std, 0.01, 0.01, 0.01, 5, 2])
         # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
         # and jerk are less certain
-        self.P = np.diag(state_variances) # state covariance matrix
+        self.P = np.diag(np.square(state_std)) # state covariance matrix
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        process_variances = np.array([1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 0.1, 10])
-        self.Q = 1e-3*np.diag(process_variances) # process noise covariance matrix
+        process_std = np.array([1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 0.1, 10])
+        self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_variances = np.array([100,100,100,1])
-        self.R_telem = np.diag(telem_measurement_variances) # measurement noise covariance matrix
+        telem_measurement_std = np.array([100,100,100,1])
+        self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_variances = np.array([1e-6, 1e-6])
-        self.R_bearing = np.diag(bearing_measurement_variances) # measurement noise covariance matrix
+        bearing_measurement_std = 1e2*np.array([1e-2, 1e-2])
+        self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
         self.telem_ukf = UnscentedKalmanFilter(
@@ -125,22 +138,24 @@ class RocketFilter:
     
     def fx(self, x: np.ndarray, dt: float):
         '''
-        State transition function
+        State transition function. Has side effect of setting x[6] (thrust acceleration)
+        to zero if flight time is over 20. Since it reads that from `self` it's highly
+        coupled and that's probably bad. TODO: figure out a better way.
         '''
+        if self.flight_time > 20:
+            x[6] = 0
         x = np.copy(x)
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
+        # thrust direction is unit vector in velocity direction, or straight up if velocity is low (for initial lift off the launchpad)
         thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
         jerk = thrust_direction * x[7]
         drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
-        if self.flight_time > 1e4:
-            accel = grav_vec+drag
-        else:
-            accel = thrust_direction * x[6] + grav_vec + drag
-            jerk = 0
+        accel = thrust_direction * np.abs(x[6]) + grav_vec + drag
+        jerk = 0
         x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
         x[3:6] += accel * dt + 0.5 * jerk * dt**2
-        x[6] += x[7] * dt
+        # x[6] += x[7] * dt
         return x
 
     def predict_update_bearing(self, time_since_first_update: float, z: np.ndarray):
@@ -183,6 +198,7 @@ class RocketFilter:
         dt = time_since_first_update - self.last_update_time
         self.flight_time = time_since_first_update
         self.last_update_time = time_since_first_update
+        self.telem_ukf.x = self.x
         self.telem_ukf.predict(dt)
         self.x = self.telem_ukf.x
         self.P = self.telem_ukf.P
@@ -235,6 +251,8 @@ class RocketFilter:
         _, eigenvectors = np.linalg.eig(Q.T @ Q)
 
         return eigenvectors[:,0] / np.linalg.norm(eigenvectors[:,0])
+    
+
 
     def copy(self):
         '''
@@ -247,37 +265,22 @@ class RocketFilter:
             self.drag_coefficient,
             None
         )
+        _copy_helper(self, new_filter)
 
-        new_filter.x = self.x.copy()
-        new_filter.P = self.P.copy()
-        new_filter.Q = self.Q.copy()
-        new_filter.R_telem = self.R_telem.copy()
-        new_filter.R_bearing = self.R_bearing.copy()
+        def _copy_ukf(ukf: UnscentedKalmanFilter):
+            new_ukf =  UnscentedKalmanFilter(
+                dim_x=self._x_dim,
+                dim_z=self._z_dim,
+                dt=1,
+                hx=ukf.hx,
+                fx=ukf.fx,
+                points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
+            )
+            _copy_helper(ukf, new_ukf)
+            # go through every variable, if its float copy directly, if ndarray copy with copy(), otherwise ignore
+            return new_ukf
 
-        new_filter.telem_ukf = UnscentedKalmanFilter(
-            dim_x=self._x_dim,
-            dim_z=self._z_dim,
-            dt=1,
-            hx=self.telem_ukf.hx,
-            fx=self.telem_ukf.fx,
-            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
-        )
-        new_filter.telem_ukf.x = self.telem_ukf.x.copy()
-        new_filter.telem_ukf.P = self.telem_ukf.P.copy()
-        new_filter.telem_ukf.Q = self.telem_ukf.Q.copy()
-        new_filter.telem_ukf.R = self.telem_ukf.R.copy()
-
-        new_filter.bearing_ukf = UnscentedKalmanFilter(
-            dim_x=self._x_dim,
-            dim_z=self._z_dim,
-            dt=1,
-            hx=self.bearing_ukf.hx,
-            fx=self.bearing_ukf.fx,
-            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
-        )
-        new_filter.bearing_ukf.x = self.bearing_ukf.x.copy()
-        new_filter.bearing_ukf.P = self.bearing_ukf.P.copy()
-        new_filter.bearing_ukf.Q = self.bearing_ukf.Q.copy()
-        new_filter.bearing_ukf.R = self.bearing_ukf.R.copy()
+        new_filter.telem_ukf = _copy_ukf(self.telem_ukf)
+        new_filter.bearing_ukf = _copy_ukf(self.bearing_ukf)
 
         return new_filter
