@@ -1,3 +1,4 @@
+import traceback
 from simulation.flight_model import test_flight
 from src.component_algos.rocket_filter import RocketFilter
 import numpy as np
@@ -83,10 +84,7 @@ if __name__ == "__main__":
         altimeter_noise = np.random.normal(0, 1)
 
         xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
-        azimuth, altitude = filter.hx_bearing(np.array([*xyz_enu, 0,0,0,0,0]))
-        # rocket_enu_pos = pm.ecef2enu(*xyz_ecef, *cam_geodetic_location)
-        # azimuth = np.rad2deg(np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0]))
-        # altitude = np.rad2deg(np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2])))
+        azimuth, altitude = filter.hx_bearing(np.array([*xyz_ecef, 0,0,0,0,0]))
 
         writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
         writer_gt.add_scalar("enu position/y", xyz_enu[1], i)
@@ -100,18 +98,23 @@ if __name__ == "__main__":
         writer_gt.add_scalar("bearing/azimuth", azimuth, i)
         writer_gt.add_scalar("bearing/altitude",altitude, i)
 
-        filter.predict_update_bearing(t, np.array([azimuth, altitude]))
+        try:
+            filter.predict_update_bearing(t, np.array([azimuth, altitude]))
 
 
-        # if t - last_telem > telemetry_period:
-        #     last_telem = t
-        #     filter.predict_update_telem(
-        #         t,
-        #         np.array([
-        #             *(xyz_ecef + pos_noise),
-        #             test_flight.z(t)+altimeter_noise,
-        #         ])
-        #     )
+            if t - last_telem > telemetry_period:
+                last_telem = t
+                filter.predict_update_telem(
+                    t,
+                    np.array([
+                        *(xyz_ecef + pos_noise),
+                        test_flight.z(t)+altimeter_noise,
+                    ])
+                )
+        except np.linalg.LinAlgError:
+            traceback.print_exc()
+            break
+            
 
         pred_ecef = filter.x[:3]
         pred_enu = pm.ecef2enu(*pred_ecef, *start_geodetic)

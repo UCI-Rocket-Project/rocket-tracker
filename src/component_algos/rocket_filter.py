@@ -51,25 +51,25 @@ class RocketFilter:
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
-        self.x[6] = 20 # linear acceleration
-        self.x[7] = 5 # linear jerk
+        self.x[6] = 10 # linear acceleration
+        self.x[7] = 0 # linear jerk
 
-        position_std =  100
-        state_std = np.array([position_std, position_std, position_std, 0.01, 0.01, 0.01, 5, 2])
+        position_std =  0.1
+        state_std = np.array([position_std, position_std, position_std, 0.01, 0.01, 0.01, 2, 1e-9])
         # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
         # and jerk are less certain
         self.P = np.diag(np.square(state_std)) # state covariance matrix
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        process_std = np.array([1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 0.1, 10])
+        process_std = np.array([1e-3, 1e-3, 1e-3, 1, 1, 1, 1,1e-9])
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
         telem_measurement_std = np.array([100,100,100,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = 1e2*np.array([1e-2, 1e-2])
+        bearing_measurement_std = np.array([1e-3, 1e-3])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
@@ -152,7 +152,6 @@ class RocketFilter:
         jerk = thrust_direction * x[7]
         drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
         accel = thrust_direction * np.abs(x[6]) + grav_vec + drag
-        jerk = 0
         x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
         x[3:6] += accel * dt + 0.5 * jerk * dt**2
         # x[6] += x[7] * dt
