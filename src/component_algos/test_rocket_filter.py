@@ -82,11 +82,12 @@ if __name__ == "__main__":
         pos_noise = np.random.normal(0, 100, 3)
         altimeter_noise = np.random.normal(0, 1)
 
-        rocket_enu_pos = pm.ecef2enu(*xyz_ecef, *cam_geodetic_location)
-        azimuth = np.rad2deg(np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0]))
-        altitude = np.rad2deg(np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2])))
-
         xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
+        azimuth, altitude = filter.hx_bearing(np.array([*xyz_enu, 0,0,0,0,0]))
+        # rocket_enu_pos = pm.ecef2enu(*xyz_ecef, *cam_geodetic_location)
+        # azimuth = np.rad2deg(np.arctan2(rocket_enu_pos[1], rocket_enu_pos[0]))
+        # altitude = np.rad2deg(np.arctan2(rocket_enu_pos[2], np.linalg.norm(rocket_enu_pos[:2])))
+
         writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
         writer_gt.add_scalar("enu position/y", xyz_enu[1], i)
         writer_gt.add_scalar("enu position/z", xyz_enu[2], i)
