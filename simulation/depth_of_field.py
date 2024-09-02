@@ -38,9 +38,13 @@ if __name__ == "__main__":
     plt.figure()
     plt.title(f'Focal length: {calculator.focal_len_mm}mm, aperature radius: {calculator.aperature_radius_mm} mm')
     GRID_RESOLUTION = 400
+    def x_scaling_fn(x):
+        return 1/x
+    def x_scaling_fn_inv(x):
+        return 1/x
     xs, ys = np.meshgrid(
-        np.linspace(10, 5000, GRID_RESOLUTION), # object distance
-        np.linspace(714,714+10, GRID_RESOLUTION) # focus plane location
+        np.linspace(x_scaling_fn(10_000), x_scaling_fn(10), GRID_RESOLUTION), # object distance
+        np.linspace(714,714+60, GRID_RESOLUTION) # focus plane location
     )
     plt.xlabel('Object distance (m)')
     plt.ylabel('Focus distance (mm)')
@@ -49,13 +53,13 @@ if __name__ == "__main__":
         return np.pi * radius**2 / pixel_area
     radii = np.array([
             np.clip(circle_radius_to_num_pixels(
-                calculator.circle_of_confusion(x, y)
+                calculator.circle_of_confusion(x_scaling_fn_inv(x), y)
             ), 0, 100)
             for x,y in zip(xs.ravel(), ys.ravel())
     ])
     print(np.min(radii), np.max(radii))
     plt.imshow(radii.reshape((GRID_RESOLUTION,GRID_RESOLUTION)))
-    plt.xticks(np.linspace(0,GRID_RESOLUTION, 5), np.linspace(xs.min(),xs.max(), 5))
+    plt.xticks(np.linspace(0,GRID_RESOLUTION, 5), x_scaling_fn_inv(np.linspace(xs.min(),xs.max(), 5)).astype(int))
     plt.yticks(np.linspace(0,GRID_RESOLUTION, 5), np.linspace(ys.min(),ys.max(), 5))
     plt.colorbar()
     plt.show()
