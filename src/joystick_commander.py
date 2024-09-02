@@ -46,6 +46,9 @@ class JoystickCommander:
         self.gain = 0
         self.exposure = 1/30
 
+        self.focuser_offset = environment.get_focuser_position()
+        self.focuser_bounds = environment.get_focuser_bounds()
+
         self.logger = logger
         self.tracker = Tracker(self.environment, self.logger) if not vision_only else VisionOnlyTracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
@@ -77,6 +80,16 @@ class JoystickCommander:
         elif  button == BUTTON_RIGHT_TRIGGER:
             self.gain -= 50 
             self.environment.set_camera_settings(self.gain, self.exposure)
+
+        elif button == BUTTON_LEFT_BUMPER:
+            if self.focuser_offset < self.focuser_bounds[1]:
+                self.focuser_offset += (self.focuser_bounds[1] - self.focuser_bounds[0])//10
+                self.environment.move_focuser(self.focuser_offset)
+        
+        elif  button == BUTTON_LEFT_TRIGGER:
+            if self.focuser_offset > self.focuser_bounds[0]:
+                self.focuser_offset -= (self.focuser_bounds[1] - self.focuser_bounds[0])//20
+                self.environment.move_focuser(self.focuser_offset)
 
         elif button == BUTTON_SQUARE:
             print("Tracking toggled")
@@ -134,7 +147,8 @@ class JoystickCommander:
         azi, alt = self.environment.get_telescope_orientation()
         readout_text = ""
         readout_text += f"Gain: {self.gain}\n"
-        readout_text += f"azi: {azi:.2f} alt: {alt:.2f}"
+        readout_text += f"Focuser: {self.focuser_offset:.2f}\n"
+        readout_text += f"azi: {azi:.2f} alt: {alt:.2f}\n"
         for i, line in enumerate(readout_text.split('\n')):
             cv.putText(img, line, (10,20+i*15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
