@@ -9,6 +9,7 @@ from .component_algos.image_tracker import ImageTracker, NoDetectionError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
+from src.component_algos.depth_of_field import DOFCalculator
 
 
 class Tracker:
@@ -24,6 +25,7 @@ class Tracker:
         self.y_controller = PIDController(5,1,1)
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
+        self.dof_calc = DOFCalculator.from_fstop(self.focal_len, environment.cam_fstop)
 
         self.img_tracker = ImageTracker()
         self.active_tracking = False
@@ -128,6 +130,10 @@ class Tracker:
 
         if not control_scope:
             return 
+
+        distance_to_rocket = np.linalg.norm(enu_pos)
+        focuser_pos = self.dof_calc.get_focuser_offset_for_object(distance_to_rocket)
+        self.environment.move_focuser(focuser_pos)
 
         input_x = self.x_controller.step(-az_err)
         input_y = self.y_controller.step(-alt_err)

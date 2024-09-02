@@ -6,7 +6,8 @@ class Environment:
                 pad_pos_gps: tuple[float,float,float], 
                 cam_pos_gps: tuple[float, float, float],
                 camera_resolution: tuple[int,int],
-                camera_focal_len: float
+                camera_focal_len: float,
+                cam_fstop: float
         ):
         '''
         Takes rocket initial distance from mount in meters
@@ -15,6 +16,7 @@ class Environment:
         self._cam_pos_gps = cam_pos_gps
         self._camera_resolution = camera_resolution
         self._camera_focal_len = camera_focal_len
+        self._cam_fstop = cam_fstop
 
     def get_pad_pos_gps(self) -> tuple[float,float,float]:
         '''
@@ -63,3 +65,7 @@ class Environment:
 
     def get_telemetry(self) -> TelemetryData:
         pass
+
+    @property
+    def cam_fstop(self) -> float:
+        return self._cam_fstop

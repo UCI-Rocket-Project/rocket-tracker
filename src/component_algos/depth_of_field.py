@@ -31,8 +31,8 @@ class DOFCalculator:
         distance_meters: distance from the camera to the object in meters
         '''
         # TODO: replace this lazy-ass way with actually doing the math
-        x0 = (self.focal_len_mm+1)*np.ones_like(distance_meters) if isinstance(distance_meters, np.ndarray) else self.focal_len_mm+1
-        return least_squares(lambda x: self.circle_of_confusion(distance_meters, x), x0).x
+        x0 = np.ones_like(distance_meters) if isinstance(distance_meters, np.ndarray) else 1
+        return least_squares(lambda x: self.circle_of_confusion(distance_meters, self.focal_len_mm+x), x0).x
 
 if __name__ == "__main__":
     print("DOF Calculator")
@@ -78,6 +78,7 @@ if __name__ == "__main__":
     plt.title(f'Focal length: {calculator.focal_len_mm}mm, aperature radius: {calculator.aperature_radius_mm} mm')
     xs = np.linspace(10, 10_000, 1000)
     plt.plot(xs, calculator.get_focuser_offset_for_object(xs))
+    plt.ylabel('focuser offset from focal plane (mm)')
     plt.xlabel('Object distance (m)')
 
     

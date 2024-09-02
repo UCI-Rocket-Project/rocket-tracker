@@ -7,6 +7,7 @@ from haz31_telescope import HAZ31Telescope
 
 class IRLEnvironment(Environment):
     def __init__(self):
+        super().__init__((0,0,0), (0,0,0), (1920, 1080), 714, 7)
         self.cam = ASICamera(0,150,1/30)
         self.focuser = EAF(getEAFID(0))
         self.telescope = HAZ31Telescope()
@@ -27,12 +28,6 @@ class IRLEnvironment(Environment):
     def set_camera_settings(self, gain: int, exposure: float):
         self.cam = ASICamera(0,gain,exposure)
 
-    def get_camera_resolution(self) -> tuple[int,int]:
-        return (1920, 1080)
-
-    def get_focal_length(self) -> float:
-        print("WARNING: focal length returning fake value rn")
-        return 420.69
 
     def move_focuser(self, position: int):
         if position not in range(self.focuser_bounds[0], self.focuser_bounds[1]):

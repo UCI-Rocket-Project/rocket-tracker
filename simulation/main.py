@@ -70,9 +70,13 @@ class Sim(ShowBase):
         telem: TelemetryData = self.rocket.get_telemetry(0)
         self.telem = telem
 
+        self.focus_plane_position = 0
+        self.focus_offset = 0 # distance from lens to focus plane is this number plus the focal length
+        cam_fstop = 7
+
         class SimulationEnvironment(Environment):
             def __init__(env_self):
-                super().__init__(self.pad_geodetic_pos, self.cam_geodetic_location, camera_res, focal_len_pixels)
+                super().__init__(self.pad_geodetic_pos, self.cam_geodetic_location, camera_res, focal_len_pixels, cam_fstop)
 
             def get_telescope_orientation(env_self) -> tuple[float, float]:
                 return self.telescope.read_position()
@@ -88,6 +92,16 @@ class Sim(ShowBase):
 
             # def get_ground_truth_pixel_loc(env_self, time: float) -> tuple[int,int]:
             #     return self.getGroundTruthRocketPixelCoordinates(time)
+
+            def move_focuser(env_self, position: int):
+                assert position in range(*env_self.get_focuser_bounds())
+                self.focus_offset = position 
+
+            def get_focuser_bounds(env_self) -> tuple[int,int]:
+                return 0, 60
+
+            def get_focuser_position(env_self) -> int:
+                return self.focus_offset
 
             def get_telemetry(env_self) -> TelemetryData:
                 return self.telem # updated in rocketPhysicsTask
