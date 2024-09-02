@@ -1,3 +1,4 @@
+from scipy.optimize import least_squares
 # Reference material: https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-28-practical-post-process-depth-field
 #%%
 class DOFCalculator:
@@ -25,7 +26,13 @@ class DOFCalculator:
         A = 2 * self.aperature_radius_mm
         return A * np.abs(S2-S1)/S2 * f/(S1-f)
 
-
+    def get_focuser_offset_for_object(self, distance_meters: float):
+        '''
+        distance_meters: distance from the camera to the object in meters
+        '''
+        # TODO: replace this lazy-ass way with actually doing the math
+        x0 = (self.focal_len_mm+1)*np.ones_like(distance_meters) if isinstance(distance_meters, np.ndarray) else self.focal_len_mm+1
+        return least_squares(lambda x: self.circle_of_confusion(distance_meters, x), x0).x
 
 if __name__ == "__main__":
     print("DOF Calculator")
@@ -34,6 +41,8 @@ if __name__ == "__main__":
     from matplotlib import pyplot as plt
     import numpy as np
     calculator = DOFCalculator.from_fstop(714, 7)
+
+    #%%
     # make 2d plot of circle of confusion as function of object distance and focus distance
     plt.figure()
     plt.title(f'Focal length: {calculator.focal_len_mm}mm, aperature radius: {calculator.aperature_radius_mm} mm')
@@ -63,5 +72,12 @@ if __name__ == "__main__":
     plt.yticks(np.linspace(0,GRID_RESOLUTION, 5), np.linspace(ys.min(),ys.max(), 5))
     plt.colorbar()
     plt.show()
+    #%%
+    # make 1d plot of best focuser offset vs object distance
+    plt.figure()
+    plt.title(f'Focal length: {calculator.focal_len_mm}mm, aperature radius: {calculator.aperature_radius_mm} mm')
+    xs = np.linspace(10, 10_000, 1000)
+    plt.plot(xs, calculator.get_focuser_offset_for_object(xs))
+    plt.xlabel('Object distance (m)')
 
     
