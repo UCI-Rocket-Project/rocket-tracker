@@ -41,7 +41,7 @@ class JoystickCommander:
 
         self.recording = False
         self.video_writer = None
-        self.tracking = False
+        self._tracking = False
 
         self.gain = 0
         self.exposure = 1/30
@@ -51,14 +51,25 @@ class JoystickCommander:
         self.focuser_index = np.argmin(np.abs(self.focuser_offsets - environment.get_focuser_position()))
 
         self.logger = logger
-        self.tracker = Tracker(self.environment, self.logger) if not vision_only else VisionOnlyTracker(self.environment, self.logger)
+        self._vision_only = vision_only
+        self._initialize_tracker()
         self.latest_tracker_pos: np.ndarray = None
+        self.has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
 
+    def _initialize_tracker(self):
+        self.tracker = Tracker(self.environment, self.logger) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
     
     def _toggle_tracking(self):
-        if not self.tracking:
+        if not self._tracking:
             self.tracker.start_tracking(self.environment.get_telescope_orientation())
-        self.tracking = not self.tracking
+        else:
+            del self.tracker
+            self._initialize_tracker()
+        self._tracking = not self._tracking
+
+    @property
+    def tracking(self):
+        return self._tracking
     
     def _toggle_recording(self):
         if not self.recording:
@@ -184,8 +195,11 @@ class JoystickCommander:
                 self._handle_button_press(event.button) 
 
         key = cv.waitKey(1)
-        if time > 5 and not self.tracking:
+        AUTO_TRACK_TIME = 100
+        if time > AUTO_TRACK_TIME and not self.tracking and not self.has_auto_tracked:
+            print(f'Warning: auto-starting tracking at AUTO_TRACK_TIME {AUTO_TRACK_TIME}')
             key = ord('t')
+            self.has_auto_tracked = True
         self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
