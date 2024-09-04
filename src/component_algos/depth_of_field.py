@@ -27,11 +27,11 @@ class DOFCalculator:
         distance_mm = distance_meters*1000
 
         f = self.focal_len_mm
-        S1 = (f * focus_distance_mm) / (focus_distance_mm - f)
         S2 = distance_mm
         A = 2 * self.aperature_radius_mm
         if abs(focus_distance_mm - f) < 1e-6: 
             return f*A/S2 # if you analytically take the limit of the return expression as S1 -> infinity, you get this
+        S1 = (f * focus_distance_mm) / (focus_distance_mm - f)
         return A * np.abs(S2-S1)/S2 * f/(S1-f)
 
     def get_focuser_offset_for_object(self, distance_meters: float):
