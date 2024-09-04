@@ -151,7 +151,7 @@ class Sim(ShowBase):
         rocket_accel = self.rocket.get_acceleration(task.time)
         
         rocket_pos_enu = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
-        self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
+        self.rocket_model.setPos(*rocket_pos_enu)
         if self.prev_rocket_position is not None:
             quat = Quat()
             # if difference is low enough, just look straight up. Without this, it flips around at the start of the flight
@@ -230,7 +230,7 @@ class Sim(ShowBase):
 
         w,h = self.camera_res
 
-        focal_len_pixels = w/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        focal_len_pixels = self.cam_focal_len_pixels
 
         pixel_x = w/2 + focal_len_pixels * rocket_cam_pos[0]/rocket_cam_pos[1] 
         pixel_y = h/2 - focal_len_pixels * rocket_cam_pos[2]/rocket_cam_pos[1] 
@@ -239,7 +239,7 @@ class Sim(ShowBase):
 
     def getGroundTruthRocketPixelCoordinates(self):
         pt = self.rocket_model.getPos()
-        rocket_pos = np.array([pt.x+2, pt.y, pt.z])
+        rocket_pos = np.array([pt.x, pt.y, pt.z])
         return self._get_coord_pixel_loc(rocket_pos)
 
     def getRocketBoundingBox(self):
@@ -248,7 +248,7 @@ class Sim(ShowBase):
         Returns bounding box in pixels (min_x, min_y, max_x, max_y). Doesn't guarantee that the bounding box is entirely in the image.
         '''
         pt = self.rocket_model.getPos()
-        rocket_center_pos = np.array([pt.x+2, pt.y, pt.z])
+        rocket_center_pos = np.array([pt.x, pt.y, pt.z])
         rocket_pos_ecef = enu2ecef(*rocket_center_pos, *self.cam_geodetic_location)
         rocket_vel_ecef = self.rocket.get_velocity(self.telem.time) # this is slightly off but close enough for veloctiy
         rocket_vel_enu = ecef2enu(*(rocket_vel_ecef + rocket_pos_ecef), *self.cam_geodetic_location) - rocket_center_pos
