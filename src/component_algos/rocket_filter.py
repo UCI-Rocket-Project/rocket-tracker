@@ -116,7 +116,7 @@ class RocketFilter:
         rocket_pos_xy /= np.linalg.norm(rocket_pos_xy)
         
         theta = np.arcsin(np.linalg.norm(np.cross(initial_pos_xy, rocket_pos_xy)))
-        azimuth_bearing = self.initial_cam_orientation[0] + np.rad2deg(theta)
+        azimuth_bearing = self.initial_cam_orientation[0] - np.rad2deg(theta) # le epic sign error 🤡
         elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
 
         return np.array([
