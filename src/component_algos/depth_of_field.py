@@ -13,10 +13,14 @@ class DOFCalculator:
         aperature_radius_mm = focal_len_mm/(2*f_stop)
         return DOFCalculator(focal_len_mm, aperature_radius_mm)
         
-    def circle_of_confusion(self, distance_meters: float, focus_distance_mm: float):
+    def circle_of_confusion(self, distance_meters: float, focus_distance_mm: float) -> float:
         '''
         distance_meters: distance from the camera to the object in meters
         focus_distance_mm: distance from the lens to the image sensor in mm (this is what changes when the camera changes focus)
+
+        returns the radius of the circle of confusion in mm
+
+        This is written in a way that can be used with numpy arrays. If you pass in a numpy array, you get a numpy array back.
 
         Equations taken from https://en.wikipedia.org/wiki/Circle_of_confusion
         '''
