@@ -9,7 +9,7 @@ from .component_algos.image_tracker import ImageTracker, NoDetectionError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
-from src.component_algos.depth_of_field import DOFCalculator, PIXELS_TO_MM
+from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
 
 
 class Tracker:
@@ -25,7 +25,7 @@ class Tracker:
         self.y_controller = PIDController(5,1,1)
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
-        focal_len_mm = self.focal_len_pixels * PIXELS_TO_MM
+        focal_len_mm = self.focal_len_pixels * MM_PER_PIXEL
         print(f'Focal length: {focal_len_mm}mm')
         self.dof_calc = DOFCalculator.from_fstop(focal_len_mm, environment.cam_fstop)
 

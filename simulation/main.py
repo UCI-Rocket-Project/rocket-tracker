@@ -14,7 +14,7 @@ from src.utils import TelemetryData
 from src.environment import Environment
 from pymap3d import enu2geodetic, ecef2enu, enu2ecef
 from src.joystick_commander import JoystickCommander
-from src.component_algos.depth_of_field import DOFCalculator, PIXELS_TO_MM
+from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
 import shutil
 print("Removing old runs directory")
 if os.path.exists("runs"):
@@ -65,7 +65,7 @@ class Sim(ShowBase):
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
         self.logger = SummaryWriter("runs/ground_truth")
-        self.launch_time = 10
+        self.launch_time = 100
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
         self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
@@ -104,15 +104,18 @@ class Sim(ShowBase):
 
                 rocket_to_cam_distance = np.linalg.norm(ecef2enu(*self.rocket.get_position_ecef(self.telem.time), *self.cam_geodetic_location))
 
-                dof_calculator = DOFCalculator.from_fstop(focal_len_pixels * PIXELS_TO_MM, cam_fstop)
-                circle_of_confusion = dof_calculator.circle_of_confusion(rocket_to_cam_distance, self.focus_offset + focal_len_pixels)
-                self.logger.add_scalar("rendering/circle_of_confusion", circle_of_confusion, self.telem.time*100)
+                focal_len_mm = focal_len_pixels * MM_PER_PIXEL
+                dof_calculator = DOFCalculator.from_fstop(focal_len_mm, cam_fstop)
+                circle_of_confusion_mm = dof_calculator.circle_of_confusion(rocket_to_cam_distance, self.focus_offset + focal_len_mm)
+                circle_of_confusion_pixels = circle_of_confusion_mm/MM_PER_PIXEL
+                self.logger.add_scalar("rendering/circle_of_confusion", circle_of_confusion_pixels, self.telem.time*100)
                 self.logger.add_scalar("rendering/distance_to_cam", rocket_to_cam_distance, self.telem.time*100)
 
                 # apply blur but only to the rocket
-                if circle_of_confusion >= 1 and max_x-min_x > 0 and max_y-min_y > 0:
-                    kernel_size = int(np.ceil(circle_of_confusion))//2*2+1 # make sure it's odd
-                    img[min_y:max_y, min_x:max_x] = cv.GaussianBlur(img[min_y:max_y, min_x:max_x], (kernel_size, kernel_size), cv.BORDER_DEFAULT)
+                if circle_of_confusion_pixels >= 1 and max_x-min_x > 0 and max_y-min_y > 0:
+                    kernel_size = int(np.ceil(circle_of_confusion_pixels))//2*2+1 # make sure it's odd
+                    img_slice = img[min_y:max_y, min_x:max_x]
+                    cv.blur(src=img_slice,dst=img_slice, ksize=(kernel_size, kernel_size))
                 return img
 
             # def get_ground_truth_pixel_loc(env_self, time: float) -> tuple[int,int]:

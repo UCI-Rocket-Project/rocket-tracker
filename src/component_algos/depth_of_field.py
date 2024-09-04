@@ -2,7 +2,7 @@ from scipy.optimize import least_squares
 import numpy as np
 # Reference material: https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-28-practical-post-process-depth-field
 #%%
-PIXELS_TO_MM = 5.6/1920 # TODO: not hard-code this?
+MM_PER_PIXEL = 5.6/1920 # TODO: not hard-code this?
 class DOFCalculator:
     def __init__(self, focal_len_mm: float, aperature_radius_mm: float):
         self.focal_len_mm = focal_len_mm
