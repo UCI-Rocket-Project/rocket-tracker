@@ -45,16 +45,14 @@ class Rocket:
         ALT_NOISE_STD = 0#10
         ACC_NOISE_STD = 0#1e-2
 
-        if time < self.launch_time:
-            time = 0
-        else:
-            time -= self.launch_time
+        adjusted_time = max(0,time - self.launch_time)
+
         return TelemetryData(
-            gps_lat=test_flight.latitude(time) + np.random.normal(0,GPS_NOISE_STD),
-            gps_lng=test_flight.longitude(time) + np.random.normal(0,GPS_NOISE_STD),
-            altimeter_reading=test_flight.z(time) + np.random.normal(0,ALT_NOISE_STD),
-            accel_x = test_flight.ax(time) + np.random.normal(0,ACC_NOISE_STD),
-            accel_y = test_flight.ay(time) + np.random.normal(0,ACC_NOISE_STD),
-            accel_z = test_flight.az(time) + np.random.normal(0,ACC_NOISE_STD),
+            gps_lat=test_flight.latitude(adjusted_time) + np.random.normal(0,GPS_NOISE_STD),
+            gps_lng=test_flight.longitude(adjusted_time) + np.random.normal(0,GPS_NOISE_STD),
+            altimeter_reading=test_flight.z(adjusted_time) + np.random.normal(0,ALT_NOISE_STD),
+            accel_x = test_flight.ax(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
+            accel_y = test_flight.ay(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
+            accel_z = test_flight.az(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
             time = time
         )

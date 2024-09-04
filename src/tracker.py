@@ -9,7 +9,7 @@ from .component_algos.image_tracker import ImageTracker, NoDetectionError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
-from src.component_algos.depth_of_field import DOFCalculator
+from src.component_algos.depth_of_field import DOFCalculator, PIXELS_TO_MM
 
 
 class Tracker:
@@ -19,20 +19,22 @@ class Tracker:
                 ):
 
         self.camera_res = environment.get_camera_resolution()
-        self.focal_len = environment.get_focal_length()
+        self.focal_len_pixels = environment.get_focal_length_pixels()
         self.logger = logger
         self.x_controller = PIDController(5,1,1)
         self.y_controller = PIDController(5,1,1)
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
-        self.dof_calc = DOFCalculator.from_fstop(self.focal_len, environment.cam_fstop)
+        focal_len_mm = self.focal_len_pixels * PIXELS_TO_MM
+        print(f'Focal length: {focal_len_mm}mm')
+        self.dof_calc = DOFCalculator.from_fstop(focal_len_mm, environment.cam_fstop)
 
         self.img_tracker = ImageTracker()
         self.active_tracking = False
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
-        az = -np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len)
-        alt = -np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len)
+        az = -np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len_pixels)
+        alt = -np.arctan2(pixel_pos[1] - self.camera_res[1] / 2, self.focal_len_pixels)
         pixel_rot = R.from_euler("ZY", [az, alt], degrees=False)
         initial_rot = R.from_euler("ZY", self.environment.get_telescope_orientation(), degrees=True)
 
@@ -133,6 +135,9 @@ class Tracker:
 
         distance_to_rocket = np.linalg.norm(enu_pos)
         focuser_pos = self.dof_calc.get_focuser_offset_for_object(distance_to_rocket)
+        focuser_pos = np.clip(focuser_pos, *self.environment.get_focuser_bounds())
+        self.logger.add_scalar("mount/focuser_pos", focuser_pos, time*100)
+        self.logger.add_scalar("mount/distance", distance_to_rocket, time*100)
         self.environment.move_focuser(focuser_pos)
 
         input_x = self.x_controller.step(-az_err)

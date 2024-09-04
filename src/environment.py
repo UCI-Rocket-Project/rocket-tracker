@@ -6,7 +6,7 @@ class Environment:
                 pad_pos_gps: tuple[float,float,float], 
                 cam_pos_gps: tuple[float, float, float],
                 camera_resolution: tuple[int,int],
-                camera_focal_len: float,
+                camera_focal_len_pixels: float,
                 cam_fstop: float
         ):
         '''
@@ -15,7 +15,7 @@ class Environment:
         self._pad_pos_gps = pad_pos_gps
         self._cam_pos_gps = cam_pos_gps
         self._camera_resolution = camera_resolution
-        self._camera_focal_len = camera_focal_len
+        self._camera_focal_len_pixels = camera_focal_len_pixels
         self._cam_fstop = cam_fstop
 
     def get_pad_pos_gps(self) -> tuple[float,float,float]:
@@ -33,8 +33,8 @@ class Environment:
     def get_camera_resolution(self) -> tuple[int,int]:
         return self._camera_resolution
 
-    def get_focal_length(self) -> float:
-        return self._camera_focal_len
+    def get_focal_length_pixels(self) -> float:
+        return self._camera_focal_len_pixels
 
     def get_telescope_orientation(self) -> tuple[float,float]:
         '''

@@ -7,13 +7,14 @@ from .sim_telescope import SimTelescope
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
-from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3
+from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3, NodePath
 
 from .rocket import Rocket
 from src.utils import TelemetryData
 from src.environment import Environment
-from pymap3d import enu2geodetic, ecef2enu
+from pymap3d import enu2geodetic, ecef2enu, enu2ecef
 from src.joystick_commander import JoystickCommander
+from src.component_algos.depth_of_field import DOFCalculator, PIXELS_TO_MM
 import shutil
 print("Removing old runs directory")
 if os.path.exists("runs"):
@@ -66,6 +67,8 @@ class Sim(ShowBase):
         self.logger = SummaryWriter("runs/ground_truth")
         self.launch_time = 10
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
+        rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
+        self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
         # get tracker position in gps coordinates based on rocket telemetry
         telem: TelemetryData = self.rocket.get_telemetry(0)
         self.telem = telem
@@ -88,13 +91,36 @@ class Sim(ShowBase):
                 self.telescope.slew_rate_azi_alt(v_azimuth, v_altitude)
 
             def get_camera_image(env_self) -> np.ndarray:
-                return self.getImage()
+                img = self.getImage()
+                if img is None:
+                    return None
+                rocket_bbox = self.getRocketBoundingBox()
+                min_x, min_y, max_x, max_y = rocket_bbox
+                min_x = max(0, min_x)
+                min_y = max(0, min_y)
+                max_x = min(img.shape[1], max_x)
+                max_y = min(img.shape[0], max_y)
+
+
+                rocket_to_cam_distance = np.linalg.norm(ecef2enu(*self.rocket.get_position_ecef(self.telem.time), *self.cam_geodetic_location))
+
+                dof_calculator = DOFCalculator.from_fstop(focal_len_pixels * PIXELS_TO_MM, cam_fstop)
+                circle_of_confusion = dof_calculator.circle_of_confusion(rocket_to_cam_distance, self.focus_offset + focal_len_pixels)
+                self.logger.add_scalar("rendering/circle_of_confusion", circle_of_confusion, self.telem.time*100)
+                self.logger.add_scalar("rendering/distance_to_cam", rocket_to_cam_distance, self.telem.time*100)
+
+                # apply blur but only to the rocket
+                if circle_of_confusion >= 1 and max_x-min_x > 0 and max_y-min_y > 0:
+                    kernel_size = int(np.ceil(circle_of_confusion))//2*2+1 # make sure it's odd
+                    img[min_y:max_y, min_x:max_x] = cv.GaussianBlur(img[min_y:max_y, min_x:max_x], (kernel_size, kernel_size), cv.BORDER_DEFAULT)
+                return img
 
             # def get_ground_truth_pixel_loc(env_self, time: float) -> tuple[int,int]:
             #     return self.getGroundTruthRocketPixelCoordinates(time)
 
             def move_focuser(env_self, position: int):
-                assert position in range(*env_self.get_focuser_bounds())
+                lower_bound, upper_bound = env_self.get_focuser_bounds()
+                assert lower_bound <= position <= upper_bound, f'Focuser position {position} is out of bounds [{lower_bound}, {upper_bound}]'
                 self.focus_offset = position 
 
             def get_focuser_bounds(env_self) -> tuple[int,int]:
@@ -122,7 +148,7 @@ class Sim(ShowBase):
         rocket_accel = self.rocket.get_acceleration(task.time)
         
         rocket_pos_enu = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
-        self.rocket_model.setPos(*rocket_pos_enu)
+        self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
         if self.prev_rocket_position is not None:
             quat = Quat()
             # if difference is low enough, just look straight up. Without this, it flips around at the start of the flight
@@ -149,7 +175,7 @@ class Sim(ShowBase):
             self.logger.add_scalar("bearing/azimuth", az_new, task.time*100)
             self.logger.add_scalar("bearing/altitude", alt_new, task.time*100)
 
-            pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(task.time)
+            pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates()
             self.logger.add_scalar("pixel position/x", pixel_x, task.time*100)
             self.logger.add_scalar("pixel position/y", pixel_y, task.time*100)
             # az_derivative = (az_new-az_old)/(task.time-self.prev_rocket_observation_time)
@@ -177,11 +203,12 @@ class Sim(ShowBase):
                 img = cv.imread(f)
                 os.remove(f)
                 break
-        if img is None:
-            return
         return img
-    
-    def getGroundTruthRocketPixelCoordinates(self, time):
+
+    def _get_coord_pixel_loc(self, coord: np.ndarray) -> tuple[int,int]:
+        '''
+        Coord is in 3d ENU frame relative to self.cam_geodetic_location
+        '''
         t_azi, t_alt  = self.telescope.read_position()
         az, alt = np.deg2rad(t_azi), np.deg2rad(t_alt)
         alt_rotation = np.array([
@@ -195,11 +222,8 @@ class Sim(ShowBase):
             [np.sin(az),  np.cos(az),  0],
             [0,  0,  1]
         ])
-
-        rocket_pos_ecef = self.rocket.get_position_ecef(time)
-        rocket_pos = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
-
-        rocket_cam_pos = alt_rotation.T @ az_rotation.T @ rocket_pos
+    
+        rocket_cam_pos = alt_rotation.T @ az_rotation.T @ coord
 
         w,h = self.camera_res
 
@@ -210,15 +234,67 @@ class Sim(ShowBase):
 
         return int(pixel_x), int(pixel_y)
 
+    def getGroundTruthRocketPixelCoordinates(self):
+        pt = self.rocket_model.getPos()
+        rocket_pos = np.array([pt.x+2, pt.y, pt.z])
+        return self._get_coord_pixel_loc(rocket_pos)
+
+    def getRocketBoundingBox(self):
+        '''
+        This method is approximate and only guarantees the bounding box is on the rocket, not that it completely covers the rocket.
+        Returns bounding box in pixels (min_x, min_y, max_x, max_y). Doesn't guarantee that the bounding box is entirely in the image.
+        '''
+        pt = self.rocket_model.getPos()
+        rocket_center_pos = np.array([pt.x+2, pt.y, pt.z])
+        rocket_pos_ecef = enu2ecef(*rocket_center_pos, *self.cam_geodetic_location)
+        rocket_vel_ecef = self.rocket.get_velocity(self.telem.time) # this is slightly off but close enough for veloctiy
+        rocket_vel_enu = ecef2enu(*(rocket_vel_ecef + rocket_pos_ecef), *self.cam_geodetic_location) - rocket_center_pos
+
+        # reference points are the top and bottom of the rocket plus or minus the rocket radius
+        # this will assume that the rocket is pointed in the direction of its velocity vector
+        rocket_radius = 0.8
+        rocket_height = 7
+        vel_direction = rocket_vel_enu/np.linalg.norm(rocket_vel_enu) if np.linalg.norm(rocket_vel_enu) > 1e-1 else np.array([0,0,1])
+        top_point = rocket_center_pos + rocket_height/2 * vel_direction
+        bottom_point = rocket_center_pos - rocket_height/2 * vel_direction
+
+        orthogonal_direction = np.cross(vel_direction, np.array([1,0,0])) # arbitrary vector that is orthogonal to the velocity vector
+        orthogonal_direction_2 = np.cross(vel_direction, orthogonal_direction) # second orthogonal vector, also orthogonal to the first
+
+        top_4_points = [
+            top_point + rocket_radius * orthogonal_direction,
+            top_point - rocket_radius * orthogonal_direction,
+            top_point + rocket_radius * orthogonal_direction_2,
+            top_point - rocket_radius * orthogonal_direction_2
+        ]
+
+        bottom_4_points = [
+            bottom_point + rocket_radius * orthogonal_direction,
+            bottom_point - rocket_radius * orthogonal_direction,
+            bottom_point + rocket_radius * orthogonal_direction_2,
+            bottom_point - rocket_radius * orthogonal_direction_2
+        ]
+
+        all_points = np.array(list.__add__(top_4_points,bottom_4_points)) # 8 points, using __add__ to make it clear it's not element-wise
+
+        pixel_coords = np.array([self._get_coord_pixel_loc(point) for point in all_points])
+
+        min_x, min_y = np.min(pixel_coords, axis=0)
+        max_x, max_y = np.max(pixel_coords, axis=0)
+        return min_x, min_y, max_x, max_y
+
     def getGroundTruthAzAlt(self, rocket_pos: np.ndarray) -> tuple[float,float]:
         az = -np.arctan2(rocket_pos[0], rocket_pos[1])
         alt = np.arctan2(rocket_pos[2], np.sqrt(rocket_pos[0]**2 + rocket_pos[1]**2))
         return np.rad2deg(az), np.rad2deg(alt)
     
     def _get_img_debug_callback(self, time):
-        pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates(time)
+        pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates()
         def callback(img: np.ndarray):
-            cv.circle(img, (pixel_x, pixel_y), 10, (255,0,0), -1)
+            cv.circle(img, (pixel_x, pixel_y), 10, (255,255,255), -1)
+            cv.putText(img, 'Rocket', (pixel_x, pixel_y), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            rocket_bbox = self.getRocketBoundingBox()
+            cv.rectangle(img, (rocket_bbox[0], rocket_bbox[1]), (rocket_bbox[2], rocket_bbox[3]), (255,255,255), 2)
         return callback
 
     def spinCameraTask(self, task):

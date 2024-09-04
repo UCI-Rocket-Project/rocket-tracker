@@ -1,6 +1,8 @@
 from scipy.optimize import least_squares
+import numpy as np
 # Reference material: https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-28-practical-post-process-depth-field
 #%%
+PIXELS_TO_MM = 5.6/1920 # TODO: not hard-code this?
 class DOFCalculator:
     def __init__(self, focal_len_mm: float, aperature_radius_mm: float):
         self.focal_len_mm = focal_len_mm
@@ -28,11 +30,14 @@ class DOFCalculator:
 
     def get_focuser_offset_for_object(self, distance_meters: float):
         '''
-        distance_meters: distance from the camera to the object in meters
+        distance_meters: distance from the camera to the object in meters. Can be a float or ndarray
+        The return value depends on what you pass. If you pass a float, you get a float. If you pass an ndarray, you get an ndarray.
         '''
         # TODO: replace this lazy-ass way with actually doing the math
-        x0 = np.ones_like(distance_meters) if isinstance(distance_meters, np.ndarray) else 1
-        return least_squares(lambda x: self.circle_of_confusion(distance_meters, self.focal_len_mm+x), x0).x
+        is_array = isinstance(distance_meters, np.ndarray)
+        x0 = np.ones_like(distance_meters) if is_array else 1
+        optim_result = least_squares(lambda x: self.circle_of_confusion(distance_meters, self.focal_len_mm+x), x0)
+        return optim_result.x if is_array else optim_result.x[0]
 
 if __name__ == "__main__":
     print("DOF Calculator")
