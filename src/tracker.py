@@ -1,11 +1,12 @@
-from .component_algos.pid_controller import PIDController
-from .component_algos.launch_detector import LaunchDetector
+from src.component_algos.pid_controller import PIDController
+from src.component_algos.mpc_controller import MPCController
+from src.component_algos.launch_detector import LaunchDetector
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from .utils import TelemetryData
-from .environment import Environment
-from .component_algos.rocket_filter import RocketFilter
-from .component_algos.image_tracker import ImageTracker, NoDetectionError
+from src.utils import TelemetryData
+from src.environment import Environment
+from src.component_algos.rocket_filter import RocketFilter
+from src.component_algos.image_tracker import ImageTracker, NoDetectionError
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
@@ -23,6 +24,7 @@ class Tracker:
         self.logger = logger
         self.x_controller = PIDController(5,1,1)
         self.y_controller = PIDController(5,1,1)
+        self.mpc_controller = MPCController()
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
         focal_len_mm = self.focal_len_pixels * MM_PER_PIXEL
@@ -106,7 +108,7 @@ class Tracker:
             self.filter.predict_update_telem(time - self.launch_detector.get_launch_time(), z)
 
         ecef_pos = self.filter.x[:3]
-        az, alt = self._ecef_to_az_alt(ecef_pos)
+        target_az, target_alt = self._ecef_to_az_alt(ecef_pos)
         current_az, current_alt = self.environment.get_telescope_orientation()
 
         enu_pos = pm.ecef2enu(*ecef_pos, *self.environment.get_cam_pos_gps())
@@ -121,11 +123,11 @@ class Tracker:
         self.logger.add_scalar("enu velocity/y", enu_vel[1], time*100)
         self.logger.add_scalar("enu velocity/z", enu_vel[2], time*100)
 
-        self.logger.add_scalar("bearing/azimuth", az, time*100)
-        self.logger.add_scalar("bearing/altitude", alt, time*100)
+        self.logger.add_scalar("bearing/azimuth", target_az, time*100)
+        self.logger.add_scalar("bearing/altitude", target_alt, time*100)
 
-        az_err = current_az - az
-        alt_err = current_alt - alt
+        az_err = current_az - target_az
+        alt_err = current_alt - target_alt
 
         self.logger.add_scalar("mount/actual_azimuth", current_az, time*100)
         self.logger.add_scalar("mount/actual_altitude", current_alt, time*100)
@@ -140,8 +142,9 @@ class Tracker:
         self.logger.add_scalar("mount/distance", distance_to_rocket, time*100)
         self.environment.move_focuser(focuser_pos)
 
-        input_x = self.x_controller.step(-az_err)
-        input_y = self.y_controller.step(-alt_err)
+        # input_x = self.x_controller.step(-az_err)
+        # input_y = self.y_controller.step(-alt_err)
+        input_x, input_y = self.mpc_controller.step(self.filter, (current_az, current_alt))
         MAX_SLEW_RATE_AZI = 8 
         MAX_SLEW_RATE_ALT = 6
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
