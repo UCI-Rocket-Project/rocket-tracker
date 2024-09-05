@@ -27,6 +27,9 @@ class Rocket:
         return np.array(pm.enu2ecef(*xyz_enu, *self.pad_geodetic_pos))
 
     def get_velocity(self, time):
+        '''
+        Returns xyz velocity in ENU frame centered on the launch pad
+        '''
         if time < self.launch_time:
             time = 0
         else:

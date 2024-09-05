@@ -65,7 +65,7 @@ class Sim(ShowBase):
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
         self.logger = SummaryWriter("runs/ground_truth")
-        self.launch_time = 100
+        self.launch_time = 5
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
         self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
@@ -249,9 +249,7 @@ class Sim(ShowBase):
         '''
         pt = self.rocket_model.getPos()
         rocket_center_pos = np.array([pt.x, pt.y, pt.z])
-        rocket_pos_ecef = enu2ecef(*rocket_center_pos, *self.cam_geodetic_location)
-        rocket_vel_ecef = self.rocket.get_velocity(self.telem.time) # this is slightly off but close enough for veloctiy
-        rocket_vel_enu = ecef2enu(*(rocket_vel_ecef + rocket_pos_ecef), *self.cam_geodetic_location) - rocket_center_pos
+        rocket_vel_enu = self.rocket.get_velocity(self.telem.time) # this is slightly off but close enough for veloctiy
 
         # reference points are the top and bottom of the rocket plus or minus the rocket radius
         # this will assume that the rocket is pointed in the direction of its velocity vector

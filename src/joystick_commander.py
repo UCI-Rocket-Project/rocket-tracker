@@ -195,7 +195,7 @@ class JoystickCommander:
                 self._handle_button_press(event.button) 
 
         key = cv.waitKey(1)
-        AUTO_TRACK_TIME = 100
+        AUTO_TRACK_TIME = 2
         if time > AUTO_TRACK_TIME and not self.tracking and not self.has_auto_tracked:
             print(f'Warning: auto-starting tracking at AUTO_TRACK_TIME {AUTO_TRACK_TIME}')
             key = ord('t')
