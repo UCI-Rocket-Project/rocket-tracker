@@ -1,4 +1,4 @@
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, Bounds
 import numpy as np
 from src.component_algos.rocket_filter import RocketFilter
 
@@ -19,6 +19,7 @@ class MPCController:
         for _ in range(self.n_steps):
             filter_copy.predict(dt)
             target_positions.append(filter_copy.hx_bearing(filter_copy.x))
+        target_positions = np.array(target_positions)
         
         def residuals(u_array: np.ndarray):
             '''
@@ -27,13 +28,20 @@ class MPCController:
             '''
             residuals = []
             bearing = np.array(current_bearing)
-            for u, position in zip(u_array, target_positions):
+            for u, position in zip(u_array.reshape(-1,2), target_positions):
                 residuals.extend(bearing - position)
                 bearing += u * dt
             return np.array(residuals)
         
-        u = least_squares(residuals, np.zeros(2*(self.n_steps+1))).x
+        bounds_abs = np.tile([8,6], self.n_steps+1)
+        u = least_squares(
+            fun=residuals, 
+            x0=np.zeros(2*(self.n_steps+1)), 
+            bounds=Bounds(-bounds_abs, bounds_abs), 
+            max_nfev=50
+        ).x
 
+        print(target_positions)
         print(np.mean(np.square(residuals(u))))
         print(u.reshape(-1,2))
 

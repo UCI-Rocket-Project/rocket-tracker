@@ -142,9 +142,9 @@ class Tracker:
         self.logger.add_scalar("mount/distance", distance_to_rocket, time*100)
         self.environment.move_focuser(focuser_pos)
 
-        # input_x = self.x_controller.step(-az_err)
-        # input_y = self.y_controller.step(-alt_err)
-        input_x, input_y = self.mpc_controller.step(self.filter, (current_az, current_alt))
+        self.mpc_controller.step(self.filter, (current_az, current_alt))
+        input_x = self.x_controller.step(-az_err)
+        input_y = self.y_controller.step(-alt_err)
         MAX_SLEW_RATE_AZI = 8 
         MAX_SLEW_RATE_ALT = 6
         x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
