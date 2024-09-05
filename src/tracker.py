@@ -150,3 +150,8 @@ class Tracker:
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
+
+    def stop_tracking(self):
+        self.x_controller = PIDController(5,1,1)
+        self.y_controller = PIDController(5,1,1)
+        self.active_tracking = False

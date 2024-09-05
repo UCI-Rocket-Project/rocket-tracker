@@ -52,19 +52,15 @@ class JoystickCommander:
 
         self.logger = logger
         self._vision_only = vision_only
-        self._initialize_tracker()
+        self.tracker = Tracker(self.environment, self.logger) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
         self.has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
 
-    def _initialize_tracker(self):
-        self.tracker = Tracker(self.environment, self.logger) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
-    
     def _toggle_tracking(self):
         if not self._tracking:
             self.tracker.start_tracking(self.environment.get_telescope_orientation())
         else:
-            del self.tracker
-            self._initialize_tracker()
+            self.tracker.stop_tracking()
         self._tracking = not self._tracking
 
     @property
