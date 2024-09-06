@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     plot_data = []
 
-    for i,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
+    for _,t in tqdm(enumerate(np.linspace(start_time, end_time, samples))):
         copy_filter = filter.copy()
         xyz_geodetic = test_flight.latitude(t), test_flight.longitude(t), test_flight.z(t)
         xyz_ecef = pm.geodetic2ecef(*xyz_geodetic)
@@ -64,17 +64,17 @@ if __name__ == "__main__":
         xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
         azimuth, altitude = filter.hx_bearing(np.array([*xyz_ecef, 0,0,0,0,0]))
 
-        writer_gt.add_scalar("enu position/x", xyz_enu[0], i)
-        writer_gt.add_scalar("enu position/y", xyz_enu[1], i)
-        writer_gt.add_scalar("enu position/z", xyz_enu[2], i)
-        writer_gt.add_scalar("enu velocity/x", v_enu[0], i)
-        writer_gt.add_scalar("enu velocity/y", v_enu[1], i)
-        writer_gt.add_scalar("enu velocity/z", v_enu[2], i)
-        writer_gt.add_scalar("enu acceleration/x", accel_enu[0], i)
-        writer_gt.add_scalar("enu acceleration/y", accel_enu[1], i)
-        writer_gt.add_scalar("enu acceleration/z", accel_enu[2], i)
-        writer_gt.add_scalar("bearing/azimuth", azimuth, i)
-        writer_gt.add_scalar("bearing/altitude",altitude, i)
+        writer_gt.add_scalar("enu position/x", xyz_enu[0], t*100)
+        writer_gt.add_scalar("enu position/y", xyz_enu[1], t*100)
+        writer_gt.add_scalar("enu position/z", xyz_enu[2], t*100)
+        writer_gt.add_scalar("enu velocity/x", v_enu[0], t*100)
+        writer_gt.add_scalar("enu velocity/y", v_enu[1], t*100)
+        writer_gt.add_scalar("enu velocity/z", v_enu[2], t*100)
+        writer_gt.add_scalar("enu acceleration/x", accel_enu[0], t*100)
+        writer_gt.add_scalar("enu acceleration/y", accel_enu[1], t*100)
+        writer_gt.add_scalar("enu acceleration/z", accel_enu[2], t*100)
+        writer_gt.add_scalar("bearing/azimuth", azimuth, t*100)
+        writer_gt.add_scalar("bearing/altitude",altitude, t*100)
 
         try:
             filter.predict_update_bearing(t, np.array([azimuth, altitude]))
@@ -99,24 +99,24 @@ if __name__ == "__main__":
         pred_vel_ecef = filter.x[3:6]
         pred_vel_enu = pm.ecef2enu(*(pred_vel_ecef+start_ecef), *start_geodetic)
 
-        writer_pred.add_scalar("enu position/x", pred_enu[0], i)
-        writer_pred.add_scalar("enu position/y", pred_enu[1], i)
-        writer_pred.add_scalar("enu position/z", pred_enu[2], i)
-        writer_pred.add_scalar("enu velocity/x", pred_vel_enu[0], i)
-        writer_pred.add_scalar("enu velocity/y", pred_vel_enu[1], i)
-        writer_pred.add_scalar("enu velocity/z", pred_vel_enu[2], i)
+        writer_pred.add_scalar("enu position/x", pred_enu[0], t*100)
+        writer_pred.add_scalar("enu position/y", pred_enu[1], t*100)
+        writer_pred.add_scalar("enu position/z", pred_enu[2], t*100)
+        writer_pred.add_scalar("enu velocity/x", pred_vel_enu[0], t*100)
+        writer_pred.add_scalar("enu velocity/y", pred_vel_enu[1], t*100)
+        writer_pred.add_scalar("enu velocity/z", pred_vel_enu[2], t*100)
         grav_vec = -9.81 * filter.x[:3] / np.linalg.norm(filter.x[:3])
         unit_v = filter.x[3:6] / np.linalg.norm(filter.x[3:6]) if np.linalg.norm(filter.x[3:6]) > 1 else -grav_vec / 9.81
         accel_ecef = unit_v * filter.x[6] + grav_vec
         accel_enu = pm.ecef2enu(*(accel_ecef+start_ecef), *pad_geodetic_pos)
-        writer_pred.add_scalar("enu acceleration/x", accel_enu[0], i)
-        writer_pred.add_scalar("enu acceleration/y", accel_enu[1], i)
-        writer_pred.add_scalar("enu acceleration/z", accel_enu[2], i)
-        writer_pred.add_scalar("thrust magnitude", filter.x[6], i)
-        writer_pred.add_scalar("jerk", filter.x[7], i)
+        writer_pred.add_scalar("enu acceleration/x", accel_enu[0], t*100)
+        writer_pred.add_scalar("enu acceleration/y", accel_enu[1], t*100)
+        writer_pred.add_scalar("enu acceleration/z", accel_enu[2], t*100)
+        writer_pred.add_scalar("thrust magnitude", filter.x[6], t*100)
+        writer_pred.add_scalar("jerk", filter.x[7], t*100)
         pred_measurement = filter.hx_bearing(filter.x)
-        writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], i)
-        writer_pred.add_scalar("bearing/altitude", pred_measurement[1], i)
+        writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], t*100)
+        writer_pred.add_scalar("bearing/altitude", pred_measurement[1], t*100)
 
         err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
 
