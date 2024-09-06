@@ -2,6 +2,7 @@ import numpy as np
 import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
 from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
+from itertools import product
 
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
@@ -157,6 +158,17 @@ class RocketFilter:
         # x[6] += x[7] * dt
         return x
 
+    def _log_state(self, time_since_first_update: float):
+        if self.writer is None:
+            raise RuntimeError('Trying to log state without a SummaryWriter passed to the filter')
+        self.writer.add_scalars("filter/x", {
+            str(i): x for i, x in enumerate(self.x)
+        }, time_since_first_update*100)
+
+        self.writer.add_scalars("filter/P", {
+            f'{i}/{j}': self.P[i,j] for i,j in product(range(self.P.shape[0]), range(self.P.shape[1]))
+        }, time_since_first_update*100)
+
     def predict_update_bearing(self, time_since_first_update: float, z: np.ndarray):
         '''
         Predict and update the filter with a bearing measurement
@@ -165,16 +177,22 @@ class RocketFilter:
         self.flight_time = time_since_first_update
         self.bearing_ukf.predict(dt)
         predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
-        self.writer.add_scalar("bearing/azi/predicted", predicted_az, time_since_first_update*100)
-        self.writer.add_scalar("bearing/alt/predicted", predicted_alt, time_since_first_update*100)
-        self.writer.add_scalar("bearing/azi/measured", z[0], time_since_first_update*100)
-        self.writer.add_scalar("bearing/alt/measured", z[1], time_since_first_update*100)
         self.last_update_time = time_since_first_update
         self.bearing_ukf.update(z)
         self.x = self.bearing_ukf.x
         self.P = self.bearing_ukf.P
         self.telem_ukf.x = self.bearing_ukf.x
         self.telem_ukf.P = self.bearing_ukf.P
+        if self.writer is not None:
+            self.writer.add_scalars('filter/azi', {
+                'predicted': predicted_az,
+                'measured': z[0]
+            }, time_since_first_update*100)
+            self.writer.add_scalars('filter/alt', {
+                'predicted': predicted_alt,
+                'measured': z[1]
+            }, time_since_first_update*100)
+            self._log_state(time_since_first_update)
     
     def predict_update_telem(self, time_since_first_update: float, z: np.ndarray):
         '''
@@ -189,6 +207,7 @@ class RocketFilter:
         self.P = self.telem_ukf.P
         self.bearing_ukf.x = self.telem_ukf.x
         self.bearing_ukf.P = self.telem_ukf.P
+        self._log_state(time_since_first_update)
 
     def predict(self, time_since_first_update: float):
         '''
