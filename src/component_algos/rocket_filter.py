@@ -171,13 +171,13 @@ class RocketFilter:
     def _log_state(self, time: float):
         if self.writer is None:
             raise RuntimeError('Trying to log state without a SummaryWriter passed to the filter')
-        self.writer.add_scalars("ukf/x", {
-            str(i): x for i, x in enumerate(self.x)
-        }, time*100)
-
-        self.writer.add_scalars("ukf/P", {
-            f'{i}/{j}': self.P[i,j] for i,j in product(range(self.P.shape[0]), range(self.P.shape[1]))
-        }, time*100)
+        predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
+        self.writer.add_scalar('ukf/azi_predicted', predicted_az, time*100)
+        self.writer.add_scalar('ukf/alt_predicted', predicted_alt, time*100)
+        for i, x in enumerate(self.x):
+            self.writer.add_scalar(f'ukf/x_{i}', x, time*100)
+        for i,j in product(range(self.P.shape[0]), range(self.P.shape[1])):
+            self.writer.add_scalar(f'ukf/P_{i}_{j}', self.P[i,j], time*100)
 
     def predict_update_bearing(self, time: float, z: np.ndarray):
         '''
@@ -190,7 +190,6 @@ class RocketFilter:
         dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
         self.bearing_ukf.predict(dt)
-        predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
         self._last_update_time = time_since_first_update
         self.bearing_ukf.update(z)
         self.x = self.bearing_ukf.x
@@ -198,14 +197,8 @@ class RocketFilter:
         self.telem_ukf.x = self.bearing_ukf.x
         self.telem_ukf.P = self.bearing_ukf.P
         if self.writer is not None:
-            self.writer.add_scalars('ukf/azi', {
-                'predicted': predicted_az,
-                'measured': z[0]
-            }, time_since_first_update*100)
-            self.writer.add_scalars('ukf/alt', {
-                'predicted': predicted_alt,
-                'measured': z[1]
-            }, time_since_first_update*100)
+            self.writer.add_scalar('ukf/azi_measured', z[0], time*100)
+            self.writer.add_scalar('ukf/alt_measured', z[1], time*100) 
             self._log_state(time)
     
     def predict_update_telem(self, time: float, z: np.ndarray):
@@ -225,7 +218,8 @@ class RocketFilter:
         self.P = self.telem_ukf.P
         self.bearing_ukf.x = self.telem_ukf.x
         self.bearing_ukf.P = self.telem_ukf.P
-        self._log_state(time)
+        if self.writer is not None:
+            self._log_state(time)
 
     def predict(self, time_since_first_update: float):
         '''
