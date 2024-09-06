@@ -23,10 +23,12 @@ class RocketFilter:
                 cam_geodetic_location: tuple[float,float,float],
                 initial_cam_orientation: tuple[float,float],
                 drag_coefficient: float = 5e-4,
+                launch_time = None,
                 writer: SummaryWriter = None):
         '''
         `pad_geodetic_location` is a tuple of (latitude, longitude, altitude) of the launchpad 
         It is used to initialize the filter state.
+        if `launch_time` is not provided, you'll need to call `set_launch_time` before calling `predict_update`
         `cam_geodetic_location` is a tuple of (latitude, longitude, altitude) of the camera.
         This assumes the camera is exactly level so that azimuth doesn't change the vertical component of the bearing vector.
         '''
@@ -44,7 +46,8 @@ class RocketFilter:
         self.initial_cam_orientation = initial_cam_orientation
         self.writer = writer
 
-        self.last_update_time = 0
+        self._launch_time = launch_time
+        self._last_update_time = launch_time
 
         self._x_dim = 8
         self._z_dim = 4
@@ -158,64 +161,79 @@ class RocketFilter:
         # x[6] += x[7] * dt
         return x
 
-    def _log_state(self, time_since_first_update: float):
+    def set_launch_time(self, time: float):
+        if self._launch_time is not None:
+            raise RuntimeError('Trying to set launch time when it has already been set')
+        self._launch_time = time
+        self._last_update_time = time
+
+
+    def _log_state(self, time: float):
         if self.writer is None:
             raise RuntimeError('Trying to log state without a SummaryWriter passed to the filter')
-        self.writer.add_scalars("filter/x", {
+        self.writer.add_scalars("ukf/x", {
             str(i): x for i, x in enumerate(self.x)
-        }, time_since_first_update*100)
+        }, time*100)
 
-        self.writer.add_scalars("filter/P", {
+        self.writer.add_scalars("ukf/P", {
             f'{i}/{j}': self.P[i,j] for i,j in product(range(self.P.shape[0]), range(self.P.shape[1]))
-        }, time_since_first_update*100)
+        }, time*100)
 
-    def predict_update_bearing(self, time_since_first_update: float, z: np.ndarray):
+    def predict_update_bearing(self, time: float, z: np.ndarray):
         '''
         Predict and update the filter with a bearing measurement
         '''
-        dt = time_since_first_update - self.last_update_time
+        if self._launch_time is None:
+            raise RuntimeError('Trying to predict and update filter without setting launch time')
+
+        time_since_first_update = time - self._launch_time
+        dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
         self.bearing_ukf.predict(dt)
         predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
-        self.last_update_time = time_since_first_update
+        self._last_update_time = time_since_first_update
         self.bearing_ukf.update(z)
         self.x = self.bearing_ukf.x
         self.P = self.bearing_ukf.P
         self.telem_ukf.x = self.bearing_ukf.x
         self.telem_ukf.P = self.bearing_ukf.P
         if self.writer is not None:
-            self.writer.add_scalars('filter/azi', {
+            self.writer.add_scalars('ukf/azi', {
                 'predicted': predicted_az,
                 'measured': z[0]
             }, time_since_first_update*100)
-            self.writer.add_scalars('filter/alt', {
+            self.writer.add_scalars('ukf/alt', {
                 'predicted': predicted_alt,
                 'measured': z[1]
             }, time_since_first_update*100)
-            self._log_state(time_since_first_update)
+            self._log_state(time)
     
-    def predict_update_telem(self, time_since_first_update: float, z: np.ndarray):
+    def predict_update_telem(self, time: float, z: np.ndarray):
         '''
         debug_logging is a tuple of (SummaryWriter, int) where the int is the current iteration number
         '''
-        dt = time_since_first_update - self.last_update_time
+
+        if self._launch_time is None:
+            raise RuntimeError('Trying to predict and update filter without setting launch time')
+        time_since_first_update = time - self._launch_time
+        dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
-        self.last_update_time = time_since_first_update
+        self._last_update_time = time_since_first_update
         self.telem_ukf.predict(dt)
         self.telem_ukf.update(z)
         self.x = self.telem_ukf.x
         self.P = self.telem_ukf.P
         self.bearing_ukf.x = self.telem_ukf.x
         self.bearing_ukf.P = self.telem_ukf.P
-        self._log_state(time_since_first_update)
+        self._log_state(time)
 
     def predict(self, time_since_first_update: float):
         '''
         Predict the filter state
         '''
-        dt = time_since_first_update - self.last_update_time
+        dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
-        self.last_update_time = time_since_first_update
+        self._last_update_time = time_since_first_update
         self.telem_ukf.x = self.x
         self.telem_ukf.predict(dt)
         self.x = self.telem_ukf.x

@@ -83,6 +83,8 @@ class Tracker:
 
             if not self.launch_detector.has_detected_launch():
                 self.launch_detector.update(pixel_pos, time)
+                if self.launch_detector.has_detected_launch():
+                    self.filter.set_launch_time(self.launch_detector.get_launch_time())
 
         if self.launch_detector is None:
             raise RuntimeError("Need to see rocket in first frame to start tracking, no rocket found.")
@@ -96,7 +98,7 @@ class Tracker:
 
         if pixel_pos is not None:
             az, alt = self._pixel_pos_to_az_alt(pixel_pos)
-            self.filter.predict_update_bearing(time - self.launch_detector.get_launch_time(), np.array([az, alt]))
+            self.filter.predict_update_bearing(time, np.array([az, alt]))
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)
@@ -105,7 +107,7 @@ class Tracker:
             self.logger.add_scalar("telemetry/lat", telem_measurements.gps_lat, time*100)
             self.logger.add_scalar("telemetry/lng", telem_measurements.gps_lng, time*100)
             self.logger.add_scalar("telemetry/alt", telem_measurements.altimeter_reading, time*100)
-            self.filter.predict_update_telem(time - self.launch_detector.get_launch_time(), z)
+            self.filter.predict_update_telem(time, z)
 
         ecef_pos = self.filter.x[:3]
         target_az, target_alt = self._ecef_to_az_alt(ecef_pos)

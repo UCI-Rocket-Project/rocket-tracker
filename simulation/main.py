@@ -64,7 +64,7 @@ class Sim(ShowBase):
         self.pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
-        self.logger = SummaryWriter("runs/ground_truth")
+        self.logger = SummaryWriter("runs/simulation/ground_truth")
         self.launch_time = 5
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
@@ -135,7 +135,7 @@ class Sim(ShowBase):
             def get_telemetry(env_self) -> TelemetryData:
                 return self.telem # updated in rocketPhysicsTask
             
-        estimate_logger = SummaryWriter("runs/estimate")
+        estimate_logger = SummaryWriter("runs/simulation/estimate")
         
         self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger)
 
