@@ -35,8 +35,8 @@ if __name__ == "__main__":
     # pad_geodetic_pos = np.array([35.347104, -117.808953, 620]) # the flight sim doesn't always use the _exact_ same position every time >:(
     pad_geodetic_pos = np.array([test_flight.latitude(0), test_flight.longitude(0), test_flight.z(0)])
     cam_geodetic_location = np.array([35.353056, -117.811944, 620])
-    writer_gt = SummaryWriter(f'runs/rocket_filter/true')
-    writer_pred = SummaryWriter(f'runs/rocket_filter/pred')
+    writer_gt = SummaryWriter(f'runs/test_rocket_filter/true')
+    writer_pred = SummaryWriter(f'runs/test_rocket_filter/pred')
 
 
     pad_enu_pos = pm.geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
@@ -46,6 +46,7 @@ if __name__ == "__main__":
         pad_geodetic_pos, 
         cam_geodetic_location, 
         (azimuth, altitude),
+        launch_time=0,
         writer=writer_pred
     )
 
