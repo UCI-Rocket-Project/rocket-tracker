@@ -18,6 +18,7 @@ def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from o
             pass
 
 class RocketFilter:
+    STATE_DIM = 8
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
                 cam_geodetic_location: tuple[float,float,float],
@@ -49,7 +50,7 @@ class RocketFilter:
         self._launch_time = launch_time
         self._last_update_time = launch_time
 
-        self._x_dim = 8
+        self._x_dim = RocketFilter.STATE_DIM
         self._z_dim = 4
         self.x = np.empty(self._x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
