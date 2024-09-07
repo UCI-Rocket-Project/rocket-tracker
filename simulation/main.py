@@ -7,7 +7,7 @@ from .sim_telescope import SimTelescope
 from direct.showbase.ShowBase import ShowBase
 
 from direct.task import Task
-from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3, NodePath
+from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3, NodePath, WindowProperties, FrameBufferProperties, GraphicsPipe, GraphicsPipeSelection, Camera
 
 from .rocket import Rocket
 from src.utils import TelemetryData
@@ -57,7 +57,6 @@ class Sim(ShowBase):
         self.camera_res = camera_res
         focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         self.cam_focal_len_pixels = focal_len_pixels
-        self.camLens.setFov(self.camera_fov)
         self.telescope = SimTelescope(-69.62, 0)
         # camera is at (0,0,0) but that's implicit
 
@@ -65,7 +64,7 @@ class Sim(ShowBase):
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
         self.logger = SummaryWriter("runs/simulation/true")
-        self.launch_time = 5
+        self.launch_time = 100
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
         self.rocket_model.setPos(rocket_pos_enu[0] - 2, *rocket_pos_enu[1:])
@@ -76,6 +75,7 @@ class Sim(ShowBase):
         self.focus_plane_position = 0
         self.focus_offset = 0 # distance from lens to focus plane is this number plus the focal length
         cam_fstop = 7
+        self.latest_img = None
 
         class SimulationEnvironment(Environment):
             def __init__(env_self):
@@ -91,7 +91,9 @@ class Sim(ShowBase):
                 self.telescope.slew_rate_azi_alt(v_azimuth, v_altitude)
 
             def get_camera_image(env_self) -> np.ndarray:
-                img = self.getImage()
+                if self.latest_img is None:
+                    return None
+                img = self.latest_img.copy() # cv shits itself if you don't copy
                 if img is None:
                     return None
                 rocket_bbox = self.getRocketBoundingBox()
@@ -137,13 +139,34 @@ class Sim(ShowBase):
             
         estimate_logger = SummaryWriter("runs/simulation/pred")
         
-        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger)
+        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger, auto_track_time = self.launch_time - 1)
 
-        self.taskMgr.add(self.spinCameraTask, "SpinCameraTask")
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
         self.prev_rocket_position = None
         self.prev_rocket_observation_time = None 
+        winprops = WindowProperties.size(*camera_res)
+        fbprops = FrameBufferProperties()
+        fbprops.set_rgba_bits(8, 8, 8, 0)
+        fbprops.set_depth_bits(24)
+        self.pipe = GraphicsPipeSelection.get_global_ptr().make_module_pipe('pandagl')
+        self.imageBuffer = self.graphicsEngine.makeOutput(
+            self.pipe,
+            "image buffer",
+            1,
+            fbprops,
+            winprops,
+            GraphicsPipe.BFRefuseWindow)
 
+
+        self.camera = Camera('cam')
+        self.cam = NodePath(self.camera)
+        self.camLens.setFov(self.camera_fov)
+        self.camera.setLens(self.camLens)
+        self.cam.reparentTo(self.render)
+
+        self.dr = self.imageBuffer.makeDisplayRegion()
+        self.dr.setCamera(NodePath(self.camera))
+        # end of constructor
 
     def rocketPhysicsTask(self, task):
         rocket_pos_ecef = self.rocket.get_position_ecef(task.time)
@@ -196,24 +219,40 @@ class Sim(ShowBase):
         self.prev_rocket_position = rocket_pos_sim_frame
         self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
+        self.last_hpr = self.cam.getHpr()
+        self.latest_img = self.getImage()
+        t_azi, t_alt  = self.telescope.read_position()
+        self.cam.setHpr(t_azi, t_alt,0)
+        self.controller.loop_callback(task.time, self._get_img_debug_callback(task.time))
         return Task.cont
 
     def getImage(self):
-        self.screenshot()
-        files_list = os.listdir(".")
-        img = None
-        for f in files_list:
-            if f.endswith(".jpg"):
-                img = cv.imread(f)
-                os.remove(f)
-                break
-        return img
+        # ripped from here: https://github.com/hypoid/l_sim/blob/master/conv_env.py#L234C5-L251C29
+        '''
+        Returns the camera's image, which is of type uint8 and has values
+        between 0 and 255.
+        The 'requested_format' argument should specify in which order the
+        components of the image must be. For example, valid format strings are
+        "RGBA" and "BGRA". By default, Panda's internal format "BGRA" is used,
+        in which case no data is copied over.
+        '''
+        tex = self.dr.getScreenshot()
+        data = tex.getRamImage()
+        image = np.frombuffer(data, np.uint8)
+        image.shape = (tex.getYSize(), tex.getXSize(), tex.getNumComponents())
+        image = np.flipud(image)
+        return image[:,:,:3]
 
     def _get_coord_pixel_loc(self, coord: np.ndarray) -> tuple[int,int]:
         '''
         Coord is in 3d ENU frame relative to self.cam_geodetic_location
         '''
-        t_azi, t_alt  = self.telescope.read_position()
+        # t_azi, t_alt  = self.telescope.read_position()
+        if hasattr(self, 'last_hpr'):
+            hpr = self.last_hpr
+        else:
+            hpr = self.cam.getHpr()
+        t_azi, t_alt = hpr[0], hpr[1]
         az, alt = np.deg2rad(t_azi), np.deg2rad(t_alt)
         alt_rotation = np.array([
             [1,  0,  0],
@@ -255,7 +294,7 @@ class Sim(ShowBase):
         # reference points are the top and bottom of the rocket plus or minus the rocket radius
         # this will assume that the rocket is pointed in the direction of its velocity vector
         rocket_radius = 0.8
-        rocket_height = 7
+        rocket_height = 6
         vel_direction = rocket_vel_enu/np.linalg.norm(rocket_vel_enu) if np.linalg.norm(rocket_vel_enu) > 1e-1 else np.array([0,0,1])
         top_point = rocket_center_pos + rocket_height/2 * vel_direction
         bottom_point = rocket_center_pos - rocket_height/2 * vel_direction
@@ -296,15 +335,8 @@ class Sim(ShowBase):
             cv.circle(img, (pixel_x, pixel_y), 10, (255,255,255), -1)
             cv.putText(img, 'Rocket', (pixel_x, pixel_y), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             rocket_bbox = self.getRocketBoundingBox()
-            cv.rectangle(img, (rocket_bbox[0], rocket_bbox[1]), (rocket_bbox[2], rocket_bbox[3]), (255,255,255), 2)
+            cv.rectangle(img, (rocket_bbox[0], rocket_bbox[1]), (rocket_bbox[2], rocket_bbox[3]), (255,255,255), 1)
         return callback
-
-    def spinCameraTask(self, task):
-        t_azi, t_alt  = self.telescope.read_position()
-        self.camera.setHpr(t_azi, t_alt,0)
-        self.controller.loop_callback(task.time, self._get_img_debug_callback(task.time))
-        return Task.cont
-
 
 
 app = Sim()

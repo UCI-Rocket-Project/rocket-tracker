@@ -25,7 +25,7 @@ BUTTON_LEFT_TRIGGER = 6
 BUTTON_RIGHT_TRIGGER = 7
 
 class JoystickCommander:
-    def __init__(self, environment: Environment, logger: SummaryWriter, vision_only = False):
+    def __init__(self, environment: Environment, logger: SummaryWriter, vision_only = False, auto_track_time = None):
         self.environment  = environment
         pygame.init()
         pygame.joystick.init()
@@ -54,7 +54,8 @@ class JoystickCommander:
         self._vision_only = vision_only
         self.tracker = Tracker(self.environment, self.logger) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
-        self.has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
+        self._auto_track_time = auto_track_time
+        self._has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
 
     def _toggle_tracking(self):
         if not self._tracking:
@@ -191,21 +192,24 @@ class JoystickCommander:
                 self._handle_button_press(event.button) 
 
         key = cv.waitKey(1)
-        AUTO_TRACK_TIME = 2
-        if time > AUTO_TRACK_TIME and not self.tracking and not self.has_auto_tracked:
-            print(f'Warning: auto-starting tracking at AUTO_TRACK_TIME {AUTO_TRACK_TIME}')
+        if self._auto_track_time is not None and time > self._auto_track_time and not self.tracking and not self._has_auto_tracked:
+            print(f'Warning: auto-starting tracking at {self._auto_track_time}')
             key = ord('t')
-            self.has_auto_tracked = True
+            self._has_auto_tracked = True
         self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
 
-        self.tracker.update_tracking(
-            img,
-            self.environment.get_telemetry(),
-            time,
-            self.tracking
-        )
+        if img is None:
+            img = np.zeros((1080,1920//2,3), dtype=np.uint8)
+            cv.putText(img, "No camera image", (img.shape[1]//2, img.shape[0]//2), cv.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+        else:
+            self.tracker.update_tracking(
+                img,
+                self.environment.get_telemetry(),
+                time,
+                self.tracking
+            )
 
         if self.has_joystick and not self.tracking:
             self._joystick_control()
