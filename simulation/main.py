@@ -12,7 +12,7 @@ from panda3d.core import lookAt, Quat, Shader, SamplerState, Vec3, NodePath
 from .rocket import Rocket
 from src.utils import TelemetryData
 from src.environment import Environment
-from pymap3d import enu2geodetic, ecef2enu, enu2ecef
+from pymap3d import enu2geodetic, ecef2enu, enu2ecef, ecef2geodetic
 from src.joystick_commander import JoystickCommander
 from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
 import shutil
@@ -64,7 +64,7 @@ class Sim(ShowBase):
         self.pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
-        self.logger = SummaryWriter("runs/simulation/ground_truth")
+        self.logger = SummaryWriter("runs/simulation/true")
         self.launch_time = 5
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
@@ -135,7 +135,7 @@ class Sim(ShowBase):
             def get_telemetry(env_self) -> TelemetryData:
                 return self.telem # updated in rocketPhysicsTask
             
-        estimate_logger = SummaryWriter("runs/simulation/estimate")
+        estimate_logger = SummaryWriter("runs/simulation/pred")
         
         self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger)
 
@@ -150,17 +150,18 @@ class Sim(ShowBase):
         rocket_vel = self.rocket.get_velocity(task.time)
         rocket_accel = self.rocket.get_acceleration(task.time)
         
-        rocket_pos_enu = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
-        self.rocket_model.setPos(*rocket_pos_enu)
+        rocket_pos_sim_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
+        self.rocket_model.setPos(*rocket_pos_sim_frame)
+        rocket_pos_real_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.pad_geodetic_pos))
         if self.prev_rocket_position is not None:
             quat = Quat()
             # if difference is low enough, just look straight up. Without this, it flips around at the start of the flight
-            if np.linalg.norm(rocket_pos_enu-self.prev_rocket_position) < 1e-1:
+            if np.linalg.norm(rocket_pos_sim_frame-self.prev_rocket_position) < 1e-1:
                 lookAt(quat, Vec3(0,1,0),Vec3(0,0,0))
             else:
-                lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos_enu))
+                lookAt(quat, Vec3(*self.prev_rocket_position),Vec3(*rocket_pos_sim_frame))
             self.rocket_model.setQuat(quat)
-        x,y,z = rocket_pos_enu
+        x,y,z = rocket_pos_real_frame
         self.logger.add_scalar("enu position/x", x, task.time*100)
         self.logger.add_scalar("enu position/y", y, task.time*100)
         self.logger.add_scalar("enu position/z", z, task.time*100)
@@ -174,7 +175,7 @@ class Sim(ShowBase):
         self.logger.add_scalar("enu accel/z", rocket_accel[2], task.time*100)
         if self.prev_rocket_observation_time is not None:
             az_old, alt_old = self.getGroundTruthAzAlt(self.prev_rocket_position)
-            az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos_enu)
+            az_new, alt_new = self.getGroundTruthAzAlt(rocket_pos_sim_frame)
             self.logger.add_scalar("bearing/azimuth", az_new, task.time*100)
             self.logger.add_scalar("bearing/altitude", alt_new, task.time*100)
 
@@ -186,13 +187,13 @@ class Sim(ShowBase):
         launched = int(task.time>=self.launch_time)
         self.telescope.step(task.time)
 
-        geodetic_pos = enu2geodetic(*rocket_pos_enu, *self.cam_geodetic_location)
+        geodetic_pos = ecef2geodetic(*rocket_pos_ecef)
         self.logger.add_scalar("telemetry/lat", geodetic_pos[0], task.time*100)
         self.logger.add_scalar("telemetry/lng", geodetic_pos[1], task.time*100)
         self.logger.add_scalar("telemetry/alt", geodetic_pos[2], task.time*100)
 
         self.logger.add_scalar("launched", launched, task.time*100)
-        self.prev_rocket_position = rocket_pos_enu
+        self.prev_rocket_position = rocket_pos_sim_frame
         self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
         return Task.cont

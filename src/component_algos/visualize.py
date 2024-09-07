@@ -161,6 +161,5 @@ def visualize_df(df: pd.DataFrame):
 
 if __name__ == "__main__":
     df = logs_dir_to_dataframe('runs/test_rocket_filter')
-    df.to_csv('test_rocket_filter.csv')
     df = df[df['pred/ukf/x_0'].notna()]
     visualize_df(df)
