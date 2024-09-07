@@ -137,7 +137,7 @@ class Tracker:
         if not control_scope:
             return 
 
-        distance_to_rocket = np.linalg.norm(enu_pos)
+        distance_to_rocket = np.linalg.norm(pm.ecef2enu(*ecef_pos, *self.environment.get_cam_pos_gps()))
         focuser_pos = self.dof_calc.get_focuser_offset_for_object(distance_to_rocket)
         focuser_pos = np.clip(focuser_pos, *self.environment.get_focuser_bounds())
         self.logger.add_scalar("mount/focuser_pos", focuser_pos, time*100)
