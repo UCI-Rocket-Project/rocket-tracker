@@ -81,6 +81,8 @@
         <clouds>
           <speed>12</speed>
         </clouds>
+        <!-- custom URIs are broken. https://github.com/UCI-Rocket-Project/rocket-tracker/issues/3  -->
+        <!-- <cubemap_uri>file://rocket_tracker/textures/desert_sky_2k.dds</cubemap_uri> -->
       </sky>
 
       <shadows>1</shadows>
