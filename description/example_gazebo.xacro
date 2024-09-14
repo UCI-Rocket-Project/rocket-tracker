@@ -99,6 +99,7 @@
                 </image>
                 <clip>
                     <near>0.02</near>
+                    <far>10000</far>
                 </clip>
                 <noise>
                     <type>gaussian</type>
@@ -109,7 +110,7 @@
             <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
                 <frame_name>camera_link_optical</frame_name>
                 <min_depth>0.1</min_depth>
-                <max_depth>500</max_depth>
+                <max_depth>10000</max_depth>
             </plugin>
         </sensor>
     </gazebo>
