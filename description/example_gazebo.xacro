@@ -87,7 +87,7 @@
     <!-- Note that although visualise is set to true, it won't actually visualise the depth camera in gazebo. To see the preview, 
             try swapping "depth" to "camera"-->
     <gazebo reference="camera_link">
-        <sensor type="depth" name="my_camera">
+        <sensor type="camera" name="my_camera">
             <update_rate>20</update_rate>
             <visualize>true</visualize>
             <camera name="cam">
@@ -99,7 +99,6 @@
                 </image>
                 <clip>
                     <near>0.02</near>
-                    <far>300</far>
                 </clip>
                 <noise>
                     <type>gaussian</type>

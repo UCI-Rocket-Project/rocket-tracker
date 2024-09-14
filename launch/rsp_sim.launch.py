@@ -1,9 +1,10 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
+from launch_ros.substitutions import FindPackageShare
 
 from launch_ros.actions import Node
 import xacro
@@ -30,7 +31,14 @@ def generate_launch_description():
         'use_sim_time': True}] # add other parameters here if required
     )
 
+    pkg_share = FindPackageShare(package=pkg_name).find(pkg_name)
+    world_file_name = 'gz_world.sdf'
+    world_path = os.path.join(pkg_share, 'worlds', world_file_name)
 
+    declare_world_cmd = DeclareLaunchArgument(
+        name='world',
+        default_value=world_path,
+        description='Full path to the world model file to load')
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
@@ -50,6 +58,7 @@ def generate_launch_description():
 
     # Run the node
     return LaunchDescription([
+        declare_world_cmd,
         gazebo,
         node_robot_state_publisher,
         spawn_entity
