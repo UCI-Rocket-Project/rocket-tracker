@@ -183,7 +183,8 @@ class JoystickCommander:
     def loop_callback(self, time: float, img_debug_callback: Callable = lambda x: None) -> bool:
         '''
         img_debug_callback should take a cv Mat and draw on it as a side effect, then return nothing.
-        The default value is a function that takes 1 argument and does nothing.
+        The default value is a function that takes 1 argument and does nothing. This lets the simulation
+        draw ground-truth values for the rocket bounding box on the display.
         '''
         for event in pygame.event.get():
             if event.type == pygame.JOYAXISMOTION:
