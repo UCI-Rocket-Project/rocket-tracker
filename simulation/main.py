@@ -28,6 +28,13 @@ class Sim(ShowBase):
 
         ShowBase.__init__(self)
 
+        camera_res = (958, 1078)
+        props = WindowProperties() 
+        props.setSize(*camera_res) 
+
+        self.win.requestProperties(props) 
+        self.camera_res = camera_res
+
         self.skybox = self.loader.loadModel("models/skybox.bam")
         self.skybox.reparentTo(self.render)
         self.skybox.set_scale(20000)
@@ -53,8 +60,6 @@ class Sim(ShowBase):
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
 
-        camera_res = (958, 1078)
-        self.camera_res = camera_res
         focal_len_pixels = 714 / MM_PER_PIXEL / 40#self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         # fov should be around 0.9 degrees IRL
         self.camera_fov = np.rad2deg(2*np.arctan(self.camera_res[0]/(2*focal_len_pixels)))
@@ -176,7 +181,7 @@ class Sim(ShowBase):
         rocket_accel = self.rocket.get_acceleration(task.time)
         
         rocket_pos_sim_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
-        rocket_pos_sim_frame[2] += np.sin(task.time)*100
+        # rocket_pos_sim_frame[2] += np.sin(task.time)*100
         self.rocket_model.setPos(*rocket_pos_sim_frame)
         rocket_pos_real_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.pad_geodetic_pos))
         if self.prev_rocket_position is not None:
