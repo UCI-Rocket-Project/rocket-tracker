@@ -15,6 +15,7 @@ from src.environment import Environment
 from pymap3d import enu2geodetic, ecef2enu, enu2ecef, ecef2geodetic
 from src.joystick_commander import JoystickCommander
 from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
+from scipy.spatial.transform import Rotation as R
 import shutil
 print("Removing old runs directory")
 if os.path.exists("runs"):
@@ -52,10 +53,11 @@ class Sim(ShowBase):
 
         self.camera.setPos(0,0,0) # https://docs.panda3d.org/1.10/python/reference/panda3d.core.Camera#panda3d.core.Camera
 
-        self.camera_fov = 0.9 # degrees
         camera_res = (958, 1078)
         self.camera_res = camera_res
-        focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        focal_len_pixels = 714 / MM_PER_PIXEL / 40#self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
+        # fov should be around 0.9 degrees IRL
+        self.camera_fov = np.rad2deg(2*np.arctan(self.camera_res[0]/(2*focal_len_pixels)))
         self.cam_focal_len_pixels = focal_len_pixels
         self.telescope = SimTelescope(-69.62, 0)
         # camera is at (0,0,0) but that's implicit
@@ -174,6 +176,7 @@ class Sim(ShowBase):
         rocket_accel = self.rocket.get_acceleration(task.time)
         
         rocket_pos_sim_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.cam_geodetic_location))
+        rocket_pos_sim_frame[2] += np.sin(task.time)*100
         self.rocket_model.setPos(*rocket_pos_sim_frame)
         rocket_pos_real_frame = np.array(ecef2enu(*rocket_pos_ecef, *self.pad_geodetic_pos))
         if self.prev_rocket_position is not None:
@@ -216,11 +219,10 @@ class Sim(ShowBase):
         self.logger.add_scalar("telemetry/alt", geodetic_pos[2], task.time*100)
 
         self.logger.add_scalar("launched", launched, task.time*100)
-        self.prev_rocket_position = rocket_pos_sim_frame
-        self.prev_rocket_observation_time = task.time
         self.telem = self.rocket.get_telemetry(task.time)
         self.last_hpr = self.cam.getHpr()
-        self.latest_img = self.getImage()
+        self.prev_rocket_position = rocket_pos_sim_frame
+        self.prev_rocket_observation_time = task.time
         t_azi, t_alt  = self.telescope.read_position()
         self.cam.setHpr(t_azi, t_alt,0)
         self.controller.loop_callback(task.time, self._get_img_debug_callback(task.time))
@@ -278,8 +280,9 @@ class Sim(ShowBase):
         return int(pixel_x), int(pixel_y)
 
     def getGroundTruthRocketPixelCoordinates(self):
-        pt = self.rocket_model.getPos()
-        rocket_pos = np.array([pt.x, pt.y, pt.z])
+        # pt = self.rocket_model.getPos()
+        # rocket_pos = np.array([pt.x, pt.y, pt.z])
+        rocket_pos = self.prev_rocket_position
         return self._get_coord_pixel_loc(rocket_pos)
 
     def getRocketBoundingBox(self):
@@ -287,15 +290,18 @@ class Sim(ShowBase):
         This method is approximate and only guarantees the bounding box is on the rocket, not that it completely covers the rocket.
         Returns bounding box in pixels (min_x, min_y, max_x, max_y). Doesn't guarantee that the bounding box is entirely in the image.
         '''
-        pt = self.rocket_model.getPos()
-        rocket_center_pos = np.array([pt.x, pt.y, pt.z])
-        rocket_vel_enu = self.rocket.get_velocity(self.telem.time) # this is slightly off but close enough for veloctiy
+        # pt = self.rocket_model.getPos()
+        # rocket_center_pos = np.array([pt.x, pt.y, pt.z])
+        rocket_center_pos = self.prev_rocket_position
 
         # reference points are the top and bottom of the rocket plus or minus the rocket radius
         # this will assume that the rocket is pointed in the direction of its velocity vector
-        rocket_radius = 0.8
-        rocket_height = 6
-        vel_direction = rocket_vel_enu/np.linalg.norm(rocket_vel_enu) if np.linalg.norm(rocket_vel_enu) > 1e-1 else np.array([0,0,1])
+        rocket_radius = 0.9
+        rocket_height = 6.5
+        quat = self.rocket_model.getQuat()
+        transform = R.from_quat([quat.get_w(), quat.get_x(), quat.get_y(), quat.get_z()])
+        vel_direction = transform.apply([0,0,1])
+
         top_point = rocket_center_pos + rocket_height/2 * vel_direction
         bottom_point = rocket_center_pos - rocket_height/2 * vel_direction
 
@@ -332,7 +338,7 @@ class Sim(ShowBase):
     def _get_img_debug_callback(self, time):
         pixel_x, pixel_y = self.getGroundTruthRocketPixelCoordinates()
         def callback(img: np.ndarray):
-            cv.circle(img, (pixel_x, pixel_y), 10, (255,255,255), -1)
+            cv.circle(img, (pixel_x, pixel_y), 3, (255,255,255), -1)
             cv.putText(img, 'Rocket', (pixel_x, pixel_y), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             rocket_bbox = self.getRocketBoundingBox()
             cv.rectangle(img, (rocket_bbox[0], rocket_bbox[1]), (rocket_bbox[2], rocket_bbox[3]), (255,255,255), 1)
