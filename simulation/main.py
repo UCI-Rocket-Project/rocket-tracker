@@ -226,6 +226,7 @@ class Sim(ShowBase):
         self.logger.add_scalar("launched", launched, task.time*100)
         self.telem = self.rocket.get_telemetry(task.time)
         self.last_hpr = self.cam.getHpr()
+        self.latest_img = self.getImage()
         self.prev_rocket_position = rocket_pos_sim_frame
         self.prev_rocket_observation_time = task.time
         t_azi, t_alt  = self.telescope.read_position()
