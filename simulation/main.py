@@ -122,9 +122,10 @@ class Sim(ShowBase):
                 self.logger.add_scalar("rendering/distance_to_cam", rocket_to_cam_distance, self.telem.time*100)
 
                 # apply blur but only to the rocket
-                if circle_of_confusion_pixels >= 1 and max_x-min_x > 0 and max_y-min_y > 0:
+                # not considering bbox in frame or slicing because the ground truth bounding box doesn't align with the image
+                if circle_of_confusion_pixels >= 1:# and max_x-min_x > 0 and max_y-min_y > 0:
                     kernel_size = int(np.ceil(circle_of_confusion_pixels))//2*2+1 # make sure it's odd
-                    img_slice = img[min_y:max_y, min_x:max_x]
+                    img_slice = img#[min_y:max_y, min_x:max_x]
                     cv.blur(src=img_slice,dst=img_slice, ksize=(kernel_size, kernel_size))
                 return img
 
