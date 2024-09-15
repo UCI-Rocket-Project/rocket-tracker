@@ -7,6 +7,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from time import strftime
 from typing import Callable
+import line_profiler
 
 LEFT_AXIS_X = 0
 LEFT_AXIS_Y = 1
@@ -180,7 +181,8 @@ class JoystickCommander:
         cv.rectangle(img, (w-50, h-50), (w-20, h-20), (255,0,255), rect_thickness)
 
         cv.imshow("Camera Image", img)
-    
+
+    @line_profiler.profile
     def loop_callback(self, time: float, img_debug_callback: Callable = lambda x: None) -> bool:
         '''
         img_debug_callback should take a cv Mat and draw on it as a side effect, then return nothing.

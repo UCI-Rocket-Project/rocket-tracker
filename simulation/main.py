@@ -17,6 +17,7 @@ from src.joystick_commander import JoystickCommander
 from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
 from scipy.spatial.transform import Rotation as R
 import shutil
+import line_profiler
 print("Removing old runs directory")
 if os.path.exists("runs"):
     shutil.rmtree("runs")
@@ -177,6 +178,7 @@ class Sim(ShowBase):
         self.dr.setCamera(NodePath(self.camera))
         # end of constructor
 
+    @line_profiler.profile
     def rocketPhysicsTask(self, task):
         rocket_pos_ecef = self.rocket.get_position_ecef(task.time)
         rocket_vel = self.rocket.get_velocity(task.time)

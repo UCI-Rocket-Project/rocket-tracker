@@ -1,3 +1,4 @@
+import line_profiler
 from src.component_algos.pid_controller import PIDController
 from src.component_algos.mpc_controller import MPCController
 from src.component_algos.launch_detector import LaunchDetector
@@ -54,6 +55,7 @@ class Tracker:
         self.active_tracking = True
         self.img_tracker.start_new_tracking()
 
+    @line_profiler.profile
     def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float, control_scope: bool):
         '''
         `img`: image from camera
