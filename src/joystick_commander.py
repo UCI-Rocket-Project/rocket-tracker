@@ -148,7 +148,7 @@ class JoystickCommander:
         else:
             self.environment.move_telescope(0,0)
 
-    def _update_display(self, img: np.ndarray):
+    def _update_display(self, img: np.ndarray, time: float):
         # draw current position
         cv.rectangle(img, (10,50), (200,0), (0,0,0), -1)
         azi, alt = self.environment.get_telescope_orientation()
@@ -156,6 +156,7 @@ class JoystickCommander:
         readout_text += f"Gain: {self.gain}\n"
         readout_text += f"Focuser: {self.focuser_offsets[self.focuser_index]:.7f}\n"
         readout_text += f"azi: {azi:.2f} alt: {alt:.2f}\n"
+        readout_text += f"time: {time:.2f}\n"
         for i, line in enumerate(readout_text.split('\n')):
             cv.putText(img, line, (10,20+i*15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
@@ -217,7 +218,7 @@ class JoystickCommander:
         
         # important: this has side effects on `img` so it has to be after the tracker update
         img_debug_callback(img)
-        self._update_display(img)
+        self._update_display(img, time)
 
         if cv.waitKey(1) == ord('q'):
             self.environment.move_telescope(0,0)
