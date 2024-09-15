@@ -1,5 +1,5 @@
 import line_profiler
-from scipy.optimize import least_squares, Bounds
+from scipy.optimize import lsq_linear, Bounds
 import numpy as np
 from src.component_algos.rocket_filter import RocketFilter
 
@@ -22,25 +22,15 @@ class MPCController:
             filter_copy.predict(dt)
             target_positions.append(filter_copy.hx_bearing(filter_copy.x))
         target_positions = np.array(target_positions)
-        
-        def residuals(u_array: np.ndarray):
-            '''
-            u is (2*(n_steps+1)) long. The first two are the initial control inputs that we're going to return, and 
-            the rest are the control inputs for the n_steps
-            '''
-            residuals = []
-            bearing = np.array(current_bearing)
-            for u, position in zip(u_array.reshape(-1,2), target_positions):
-                residuals.extend(bearing - position)
-                bearing += u * dt
-            return np.array(residuals)
+
+        dt_matrix = np.repeat(np.tril(dt*np.ones(([self.n_steps+1, 2*(self.n_steps+1)]))), 2, axis=0)
         
         bounds_abs = np.tile([8,6], self.n_steps+1)
-        u = least_squares(
-            fun=residuals, 
-            x0=np.zeros(2*(self.n_steps+1)), 
+        u = lsq_linear(
+            dt_matrix,
+            target_positions.flatten() - np.tile(np.array(current_bearing), self.n_steps+1),
             bounds=Bounds(-bounds_abs, bounds_abs), 
-            max_nfev=50
+            # max_nfev=50
         ).x
 
         # print(target_positions)
