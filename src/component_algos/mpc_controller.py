@@ -1,3 +1,4 @@
+import line_profiler
 from scipy.optimize import least_squares, Bounds
 import numpy as np
 from src.component_algos.rocket_filter import RocketFilter
@@ -8,6 +9,7 @@ class MPCController:
         self.n_steps = n_steps
         
     
+    @line_profiler.profile
     def step(self, filter: RocketFilter, current_bearing: tuple[float,float]):
         '''
         Returns control input.
