@@ -59,22 +59,25 @@ class RocketFilter:
         self.x[6] = 10 # linear acceleration
         self.x[7] = 0 # linear jerk
 
-        position_std =  0.1
-        state_std = np.array([position_std, position_std, position_std, 0.01, 0.01, 0.01, 2, 1e-9])
+        position_std =  1e-3
+        vel_std = 1e-3
+        state_std = np.array([position_std, position_std, position_std, vel_std, vel_std, vel_std, 2, 1e-9])
         # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
         # and jerk are less certain
         self.P = np.diag(np.square(state_std)) # state covariance matrix
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        process_std = np.array([1e-3, 1e-3, 1e-3, 1, 1, 1, 1,1e-9])
+        pos_process_std = 1e-1
+        vel_process_std = 1e-6
+        process_std = np.array([pos_process_std, pos_process_std, pos_process_std, vel_process_std, vel_process_std, vel_process_std, 1,1e-9])
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
         telem_measurement_std = np.array([100,100,100,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = np.array([1e-3, 1e-3])
+        bearing_measurement_std = np.array([1e-5, 1e-5])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
