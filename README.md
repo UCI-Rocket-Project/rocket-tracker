@@ -18,3 +18,8 @@ To run the tracker IRL, do `python3 control_telescope.py`
 
 ## Installing camera software:
 https://pypi.org/project/camera-zwo-asi/
+
+
+## ROS commands
+
+ros2 launch rocket_tracker rsp_sim.launch.py
