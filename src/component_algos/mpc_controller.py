@@ -41,8 +41,8 @@ class MPCController:
             max_nfev=50
         ).x
 
-        print(target_positions)
-        print(np.mean(np.square(residuals(u))))
-        print(u.reshape(-1,2))
+        # print(target_positions)
+        # print(np.mean(np.square(residuals(u))))
+        # print(u.reshape(-1,2))
 
         return u[:2]
