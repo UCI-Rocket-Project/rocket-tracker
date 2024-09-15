@@ -2,7 +2,6 @@ absl-py==2.1.0
 annotated-types==0.7.0
 asttokens==2.4.1
 astunparse==1.6.3
-catkin==0.8.10
 certifi==2024.7.4
 cftime==1.6.4
 charset-normalizer==3.3.2
