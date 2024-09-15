@@ -23,18 +23,19 @@ class MPCController:
             target_positions.append(filter_copy.hx_bearing(filter_copy.x))
         target_positions = np.array(target_positions)
 
-        dt_matrix = np.repeat(np.tril(dt*np.ones(([self.n_steps+1, 2*(self.n_steps+1)]))), 2, axis=0)
+        A_matrix = np.repeat(np.tril(dt*np.ones(([self.n_steps+1, 2*(self.n_steps+1)]))), 2, axis=0)
         
         bounds_abs = np.tile([8,6], self.n_steps+1)
+        b_vec = target_positions.flatten() - np.tile(np.array(current_bearing), self.n_steps+1)
         u = lsq_linear(
-            dt_matrix,
-            target_positions.flatten() - np.tile(np.array(current_bearing), self.n_steps+1),
+            A_matrix,
+            b_vec, 
             bounds=Bounds(-bounds_abs, bounds_abs), 
             # max_nfev=50
         ).x
 
         # print(target_positions)
-        # print(np.mean(np.square(residuals(u))))
+        # print(np.mean(np.square(A_matrix @ u - b_vec)))
         # print(u.reshape(-1,2))
 
         return u[:2]
