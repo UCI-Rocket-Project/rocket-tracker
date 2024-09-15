@@ -222,10 +222,6 @@ class JoystickCommander:
         img_debug_callback(img)
         self._update_display(img, time)
 
-        if cv.waitKey(1) == ord('q'):
-            self.environment.move_telescope(0,0)
-            return False
-        
         return True
             
 
