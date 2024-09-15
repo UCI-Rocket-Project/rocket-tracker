@@ -10,7 +10,14 @@ The hardware simulator is here: https://github.com/ASCOMInitiative/ASCOM.Alpaca.
 
 Panda3D install: https://docs.panda3d.org/1.10/python/introduction/
 
-To run the simulation, do `LD_LIBRARY_PATH='/home/eric/code/py-zwo-eaf/src/EAF_linux_mac_SDK_V1.6/lib/x64' py -m simulation.sim`.
+
+Problem with ld library path solution:
+`LD_LIBRARY_PATH='/home/eric/code/py-zwo-eaf/src/EAF_linux_mac_SDK_V1.6/lib/x64' py -m simulation.main`.
+
+Commands:
+py -m simulation.main
+py -m src.component_algos.visualize
+py -m src.component_algos.test_rocket_filter
 
 The exact library path will change based on where the autofocuser library is installed to.
 
