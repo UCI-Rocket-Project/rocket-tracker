@@ -146,8 +146,18 @@ class Tracker:
         az_err = current_az - target_az
         alt_err = current_alt - target_alt
 
-        self.logger.add_scalar("mount/actual_azimuth", current_az, time*100)
-        self.logger.add_scalar("mount/actual_altitude", current_alt, time*100)
+        # self.logger.add_scalar("mount/actual_azimuth", current_az, time*100)
+        # self.logger.add_scalar("mount/actual_altitude", current_alt, time*100)
+        self.logger.add_scalars("mount/azimuth", {
+            'actual': current_az,
+            'setpoint': target_az,
+            'error': az_err
+        }, time*100)
+        self.logger.add_scalars("mount/altitude", {
+            'actual': current_alt,
+            'setpoint': target_alt,
+            'error': alt_err
+        }, time*100)
 
         if not control_scope:
             return 
@@ -174,6 +184,6 @@ class Tracker:
         self.logger.add_scalar("mount/mpc_y_input", mpc_input[1], time*100)
 
     def stop_tracking(self):
-        self.x_controller = PIDController(5,1,1)
-        self.y_controller = PIDController(5,1,1)
+        self.x_controller = PIDController(5,5,1)
+        self.y_controller = PIDController(5,5,1)
         self.active_tracking = False
