@@ -123,7 +123,11 @@ class RocketFilter:
         rocket_pos_xy = rocket_pos_enu[:2]
         rocket_pos_xy /= np.linalg.norm(rocket_pos_xy)
         
-        theta = np.arcsin(np.linalg.norm(np.cross(initial_pos_xy, rocket_pos_xy)))
+        # im a dumbass so I didn't figure out this math myself
+        # https://stackoverflow.com/a/16544330
+        dot = np.dot(initial_pos_xy, rocket_pos_xy)
+        det = np.cross(initial_pos_xy, rocket_pos_xy)
+        theta = np.arctan2(det, dot)  # atan2(y, x) or atan2(sin, cos)
         azimuth_bearing = self.initial_cam_orientation[0] + np.rad2deg(theta)
         elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
 
