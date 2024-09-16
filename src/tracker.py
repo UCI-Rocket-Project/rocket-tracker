@@ -54,7 +54,7 @@ class Tracker:
         return int(pixel_x), int(pixel_y)
 
     def _ecef_to_az_alt(self, ecef_pos: np.ndarray) -> tuple[float,float]:
-        return self.filter.hx_bearing(ecef_pos)
+        return self.filter.hx_bearing(ecef_pos)[:2]
     
     def start_tracking(self, initial_cam_orientation: tuple[float,float]):
         self.initial_cam_orientation = initial_cam_orientation
@@ -112,7 +112,7 @@ class Tracker:
             self.filter.predict_update_bearing(time, np.array([az, alt, bbox_diagonal_len]))
 
 
-        predicted_pixel_pos = self._az_alt_to_pixel_pos(self.filter.hx_bearing(self.filter.x))
+        predicted_pixel_pos = self._az_alt_to_pixel_pos(self.filter.hx_bearing(self.filter.x)[:2])
         cv.circle(img, predicted_pixel_pos, 10, (255,0,0), 2)
         self.logger.add_scalar("pixel position/x_filter", predicted_pixel_pos[0], time*100)
         self.logger.add_scalar("pixel position/y_filter", predicted_pixel_pos[1], time*100)
