@@ -17,10 +17,10 @@ class MPCController:
         '''
         dt = self.time_horizon/self.n_steps
         filter_copy = filter.copy()
-        target_positions = [filter_copy.hx_bearing(filter_copy.x)]
+        target_positions = [filter_copy.hx_bearing(filter_copy.x)[:2]]
         for _ in range(self.n_steps):
             filter_copy.predict(dt)
-            target_positions.append(filter_copy.hx_bearing(filter_copy.x))
+            target_positions.append(filter_copy.hx_bearing(filter_copy.x)[:2])
         target_positions = np.array(target_positions)
 
         A_matrix = np.repeat(np.tril(dt*np.ones(([self.n_steps+1, 2*(self.n_steps+1)]))), 2, axis=0)

@@ -77,7 +77,8 @@ class Tracker:
             pixel_pos = self.environment.get_ground_truth_pixel_loc(time)
         else:
             try:
-                pixel_pos = self.img_tracker.estimate_pos(img)[:2]
+                bbox = self.img_tracker.estimate_pos(img)
+                pixel_pos = bbox[:2]
             except NoDetectionError:
                 pixel_pos = None
 
@@ -107,7 +108,8 @@ class Tracker:
 
         if pixel_pos is not None:
             az, alt = self._pixel_pos_to_az_alt(pixel_pos)
-            self.filter.predict_update_bearing(time, np.array([az, alt]))
+            bbox_diagonal_len = np.linalg.norm(bbox[2:])
+            self.filter.predict_update_bearing(time, np.array([az, alt, bbox_diagonal_len]))
 
 
         predicted_pixel_pos = self._az_alt_to_pixel_pos(self.filter.hx_bearing(self.filter.x))

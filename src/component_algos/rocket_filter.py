@@ -19,6 +19,8 @@ def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from o
 
 class RocketFilter:
     STATE_DIM = 8
+    ROCKET_HEIGHT = 8
+    FOCAL_LEN = 177.87 # TODO: un-hardcode this
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
                 cam_geodetic_location: tuple[float,float,float],
@@ -74,10 +76,10 @@ class RocketFilter:
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_std = np.array([100,100,100,1])
+        telem_measurement_std = np.array([10,10,10,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = np.array([1e-5, 1e-5])
+        bearing_measurement_std = np.array([1e-5, 1e-5, 10])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
@@ -96,7 +98,7 @@ class RocketFilter:
 
         self.bearing_ukf = UnscentedKalmanFilter(
             dim_x=self._x_dim,
-            dim_z=2,
+            dim_z=3,
             dt=1,
             hx=self.hx_bearing,
             fx=self.fx,
@@ -131,9 +133,15 @@ class RocketFilter:
         azimuth_bearing = self.initial_cam_orientation[0] + np.rad2deg(theta)
         elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
 
+        # TODO: rewrite this so it uses better math than similar triangles which assumes the rocket is in the center of the frame
+        focal_len_px = RocketFilter.FOCAL_LEN
+        dist_to_cam = np.linalg.norm(rocket_pos_enu)
+        apparent_size = focal_len_px * RocketFilter.ROCKET_HEIGHT / dist_to_cam
+
         return np.array([
             azimuth_bearing,
-            elevation_bearing
+            elevation_bearing,
+            apparent_size
         ])
 
     def hx_telem(self, x: np.ndarray):
@@ -179,9 +187,10 @@ class RocketFilter:
     def _log_state(self, time: float):
         if self.writer is None:
             raise RuntimeError('Trying to log state without a SummaryWriter passed to the filter')
-        predicted_az, predicted_alt = self.hx_bearing(self.bearing_ukf.x)
+        predicted_az, predicted_alt, predicted_size = self.hx_bearing(self.bearing_ukf.x)
         self.writer.add_scalar('ukf/azi_predicted', predicted_az, time*100)
         self.writer.add_scalar('ukf/alt_predicted', predicted_alt, time*100)
+        self.writer.add_scalar('ukf/size_predicted', predicted_size, time*100)
         for i, x in enumerate(self.x):
             self.writer.add_scalar(f'ukf/x_{i}', x, time*100)
         for i,j in product(range(self.P.shape[0]), range(self.P.shape[1])):

@@ -58,11 +58,11 @@ if __name__ == "__main__":
         compensated_accel = accel_body - gravity_ecef
         accel_ecef_unit = (compensated_accel) / np.linalg.norm(compensated_accel)
 
-        pos_noise = np.random.normal(0, 100, 3)
+        pos_noise = np.random.normal(0, 1, 3)
         altimeter_noise = np.random.normal(0, 1)
 
         xyz_enu = pm.ecef2enu(*xyz_ecef, *start_geodetic)
-        azimuth, altitude = filter.hx_bearing(np.array([*xyz_ecef, 0,0,0,0,0]))
+        azimuth, altitude, size = filter.hx_bearing(np.array([*xyz_ecef, 0,0,0,0,0]))
 
         writer_gt.add_scalar("enu position/x", xyz_enu[0], t*100)
         writer_gt.add_scalar("enu position/y", xyz_enu[1], t*100)
@@ -75,9 +75,10 @@ if __name__ == "__main__":
         writer_gt.add_scalar("enu acceleration/z", accel_enu[2], t*100)
         writer_gt.add_scalar("bearing/azimuth", azimuth, t*100)
         writer_gt.add_scalar("bearing/altitude",altitude, t*100)
+        writer_gt.add_scalar("bearing/size",size, t*100)
 
         try:
-            filter.predict_update_bearing(t, np.array([azimuth, altitude]))
+            filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
 
 
             if t - last_telem > telemetry_period:
@@ -117,6 +118,7 @@ if __name__ == "__main__":
         pred_measurement = filter.hx_bearing(filter.x)
         writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], t*100)
         writer_pred.add_scalar("bearing/altitude", pred_measurement[1], t*100)
+        writer_pred.add_scalar("bearing/size", pred_measurement[2], t*100)
 
         err.append(np.linalg.norm(filter.x[:3] - xyz_ecef))
 
