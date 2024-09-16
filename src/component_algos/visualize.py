@@ -7,6 +7,7 @@ import numpy as np
 from itertools import product
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.widgets import Slider
+import argparse
 
 def format_numpy(x):
     return ", ".join([f"{i:.2f}" for i in x])
@@ -160,6 +161,11 @@ def visualize_df(df: pd.DataFrame):
     plt.show()
 
 if __name__ == "__main__":
-    df = logs_dir_to_dataframe('runs/test_rocket_filter')
+    parser = argparse.ArgumentParser(description='Visualize logs')
+    parser.add_argument('logs_path', nargs='?', default='runs/test_rocket_filter', help='path to tensorboard logs (defualt is runs/test_rocket_filter)')
+
+    args = parser.parse_args()
+
+    df = logs_dir_to_dataframe(args.logs_path)
     df = df[df['pred/ukf/x_0'].notna()]
     visualize_df(df)
