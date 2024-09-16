@@ -45,6 +45,14 @@ class Tracker:
         az, alt = final_rot.as_euler("ZYX", degrees=True)[:2]
         return az, alt
 
+    def _az_alt_to_pixel_pos(self, az_alt: np.ndarray) -> tuple[float,float]:
+        telescope_current_rotation = R.from_euler("ZY", self.environment.get_telescope_orientation(), degrees=True)
+        az_alt_vector = R.from_euler("ZY", az_alt, degrees=True).apply([0,0,1])
+        cam_vec = telescope_current_rotation.inv().apply(az_alt_vector) 
+        pixel_x = self.camera_res[0]/2 + self.focal_len_pixels * cam_vec[0]/cam_vec[2]
+        pixel_y = self.camera_res[1]/2 + self.focal_len_pixels * cam_vec[1]/cam_vec[2]
+        return int(pixel_x), int(pixel_y)
+
     def _ecef_to_az_alt(self, ecef_pos: np.ndarray) -> tuple[float,float]:
         return self.filter.hx_bearing(ecef_pos)
     
@@ -72,7 +80,6 @@ class Tracker:
                 pixel_pos = self.img_tracker.estimate_pos(img)[:2]
             except NoDetectionError:
                 pixel_pos = None
-        cv.circle(img, pixel_pos, 10, (0,255,0), 2)
 
         if not self.active_tracking:
             return
@@ -101,6 +108,12 @@ class Tracker:
         if pixel_pos is not None:
             az, alt = self._pixel_pos_to_az_alt(pixel_pos)
             self.filter.predict_update_bearing(time, np.array([az, alt]))
+
+
+        predicted_pixel_pos = self._az_alt_to_pixel_pos(self.filter.hx_bearing(self.filter.x))
+        cv.circle(img, predicted_pixel_pos, 10, (255,0,0), 2)
+        self.logger.add_scalar("pixel position/x_filter", predicted_pixel_pos[0], time*100)
+        self.logger.add_scalar("pixel position/y_filter", predicted_pixel_pos[1], time*100)
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)
@@ -146,7 +159,7 @@ class Tracker:
         self.logger.add_scalar("mount/distance", distance_to_rocket, time*100)
         self.environment.move_focuser(focuser_pos)
 
-        self.mpc_controller.step(self.filter, (current_az, current_alt))
+        mpc_input = self.mpc_controller.step(self.filter, (current_az, current_alt))
         input_x = self.x_controller.step(-az_err)
         input_y = self.y_controller.step(-alt_err)
         MAX_SLEW_RATE_AZI = 8 
@@ -157,6 +170,8 @@ class Tracker:
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
+        self.logger.add_scalar("mount/mpc_x_input", mpc_input[0], time*100)
+        self.logger.add_scalar("mount/mpc_y_input", mpc_input[1], time*100)
 
     def stop_tracking(self):
         self.x_controller = PIDController(5,1,1)
