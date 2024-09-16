@@ -70,7 +70,7 @@ class RocketFilter:
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        pos_process_std = 1e-1
+        pos_process_std = 1e-2
         vel_process_std = 1e-6
         process_std = np.array([pos_process_std, pos_process_std, pos_process_std, vel_process_std, vel_process_std, vel_process_std, 1,1e-9])
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
