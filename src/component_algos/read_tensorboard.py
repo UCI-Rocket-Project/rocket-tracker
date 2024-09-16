@@ -5,7 +5,6 @@ import pandas as pd
 def logs_dir_to_dataframe(logs_dir):
     reader = SummaryReader(logs_dir, extra_columns={'dir_name', 'wall_time'})
     raw_df = reader.scalars
-    raw_df.to_csv('raw.csv')
 
     raw_df['col_name'] = raw_df[['dir_name', 'tag']].agg('/'.join, axis=1)
 
