@@ -1,7 +1,7 @@
 from .component_algos.pid_controller import PIDController
 from .utils import TelemetryData
 from .environment import Environment
-from .component_algos.image_tracker import ImageTracker, NoDetectionError
+from src.component_algos.img_tracking import YOLOImageTracker, NoDetectionError
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
@@ -16,7 +16,7 @@ class VisionOnlyTracker:
         self.environment = environment
         self.logger = logger
 
-        self.img_tracker = ImageTracker()
+        self.img_tracker = YOLOImageTracker()
 
     
     def start_tracking(self, _initial_cam_orientation: tuple[float,float]):

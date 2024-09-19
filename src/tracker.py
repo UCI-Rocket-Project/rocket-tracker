@@ -7,7 +7,7 @@ import numpy as np
 from src.utils import TelemetryData
 from src.environment import Environment
 from src.component_algos.rocket_filter import RocketFilter
-from src.component_algos.image_tracker import ImageTracker, NoDetectionError
+from src.component_algos.img_tracking import YOLOImageTracker, NoDetectionError, BaseImageTracker
 import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
@@ -18,7 +18,11 @@ class Tracker:
     def __init__(self, 
                 environment: Environment,
                 logger: SummaryWriter, 
+                img_tracker: BaseImageTracker = YOLOImageTracker()
                 ):
+        '''
+        img_tracker_class needs to extend BaseImageTracker
+        '''
 
         self.camera_res = environment.get_camera_resolution()
         self.focal_len_pixels = environment.get_focal_length_pixels()
@@ -32,7 +36,7 @@ class Tracker:
         print(f'Focal length: {focal_len_mm}mm')
         self.dof_calc = DOFCalculator.from_fstop(focal_len_mm, environment.cam_fstop)
 
-        self.img_tracker = ImageTracker()
+        self.img_tracker = img_tracker
         self.active_tracking = False
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
