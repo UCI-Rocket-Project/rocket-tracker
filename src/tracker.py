@@ -18,7 +18,7 @@ class Tracker:
     def __init__(self, 
                 environment: Environment,
                 logger: SummaryWriter, 
-                img_tracker: BaseImageTracker = YOLOImageTracker()
+                img_tracker: BaseImageTracker
                 ):
         '''
         img_tracker_class needs to extend BaseImageTracker

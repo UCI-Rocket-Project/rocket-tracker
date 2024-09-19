@@ -63,3 +63,35 @@ def angle_between_aim_directions(aim1: tuple[float,float], aim2: tuple[float,flo
     Returns the angle between two aim directions in degrees
     '''
     return angle_between_vectors(aim_direction_to_vec(aim1), aim_direction_to_vec(aim2))
+
+def coord_to_pixel(coord: np.ndarray, camera_pos: np.ndarray, camera_heading: tuple[float,float], camera_res: tuple[int, int], camera_focal_len: float) -> tuple[int,int]:
+    '''
+    coord and camera_pos are of shape (3,)
+    camera_res is (width, height)
+    TODO: figure out assumption about where the camera is pointed at 0 azimuth and altitude
+    camera focal len needs to be in pixels
+    '''
+    t_azi, t_alt = camera_heading
+    az, alt = np.deg2rad(t_azi), np.deg2rad(t_alt)
+    alt_rotation = np.array([
+        [1,  0,  0],
+        [0,  np.cos(alt),  -np.sin(alt)],
+        [0,  np.sin(alt), np.cos(alt)] 
+    ])
+
+    az_rotation = np.array([
+        [np.cos(az),  -np.sin(az),  0],
+        [np.sin(az),  np.cos(az),  0],
+        [0,  0,  1]
+    ])
+
+    rocket_cam_pos = alt_rotation.T @ az_rotation.T @ (coord - camera_pos)
+
+    w,h = camera_res
+
+    focal_len_pixels = camera_focal_len
+
+    pixel_x = w/2 + focal_len_pixels * rocket_cam_pos[0]/rocket_cam_pos[1] 
+    pixel_y = h/2 - focal_len_pixels * rocket_cam_pos[2]/rocket_cam_pos[1] 
+
+    return int(pixel_x), int(pixel_y)

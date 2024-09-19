@@ -1,6 +1,7 @@
 from .environment import Environment
 from .tracker import Tracker
 from .vision_only_tracker import VisionOnlyTracker
+from src.component_algos.img_tracking import YOLOImageTracker
 import pygame
 import cv2 as cv
 import numpy as np
@@ -53,7 +54,7 @@ class JoystickCommander:
 
         self.logger = logger
         self._vision_only = vision_only
-        self.tracker = Tracker(self.environment, self.logger) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
+        self.tracker = Tracker(self.environment, self.logger, YOLOImageTracker()) if not self._vision_only else VisionOnlyTracker(self.environment, self.logger)
         self.latest_tracker_pos: np.ndarray = None
         self._auto_track_time = auto_track_time
         self._has_auto_tracked = False # flag to prevent auto-tracking from happening more than once

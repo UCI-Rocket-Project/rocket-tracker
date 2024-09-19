@@ -59,3 +59,8 @@ class Rocket:
             accel_z = test_flight.az(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
             time = time
         )
+
+    def get_quarternion(self, time):
+        return np.array([
+            test_flight.e0(time), test_flight.e1(time), test_flight.e2(time), test_flight.e3(time), 
+        ])
