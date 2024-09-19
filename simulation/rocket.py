@@ -2,6 +2,7 @@ from .flight_model import test_flight
 from src.utils import TelemetryData
 import numpy as np
 import pymap3d as pm
+from scipy.spatial.transform import Rotation as R
 
 class Rocket:
     def __init__(self, pad_geodetic_pos: np.ndarray, launch_time: float = 0):
@@ -60,7 +61,7 @@ class Rocket:
             time = time
         )
 
-    def get_quarternion(self, time):
-        return np.array([
-            test_flight.e0(time), test_flight.e1(time), test_flight.e2(time), test_flight.e3(time), 
-        ])
+    def get_orientation(self, time) -> R:
+        return R.from_quat(np.array([
+            test_flight.e0(time), test_flight.e1(time), test_flight.e2(time), test_flight.e3(time)
+        ]), scalar_first=True)

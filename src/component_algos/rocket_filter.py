@@ -3,6 +3,7 @@ import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
 from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 from itertools import product
+from src.component_algos.depth_of_field import MM_PER_PIXEL
 
 #https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
 
@@ -19,12 +20,12 @@ def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from o
 
 class RocketFilter:
     STATE_DIM = 8
-    ROCKET_HEIGHT = 8
-    FOCAL_LEN = 177.87 # TODO: un-hardcode this
+    ROCKET_HEIGHT = 6.5
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
                 cam_geodetic_location: tuple[float,float,float],
                 initial_cam_orientation: tuple[float,float],
+                focal_len_px: float,
                 drag_coefficient: float = 5e-4,
                 launch_time = None,
                 writer: SummaryWriter = None):
@@ -48,6 +49,7 @@ class RocketFilter:
         self.drag_coefficient = 0#drag_coefficient
         self.initial_cam_orientation = initial_cam_orientation
         self.writer = writer
+        self.focal_len_px = focal_len_px
 
         self._launch_time = launch_time
         self._last_update_time = launch_time
@@ -79,7 +81,7 @@ class RocketFilter:
         telem_measurement_std = np.array([10,10,10,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = np.array([1e-5, 1e-5, 10])
+        bearing_measurement_std = np.array([1e-5, 1e-5, 1])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
@@ -134,9 +136,8 @@ class RocketFilter:
         elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
 
         # TODO: rewrite this so it uses better math than similar triangles which assumes the rocket is in the center of the frame
-        focal_len_px = RocketFilter.FOCAL_LEN
         dist_to_cam = np.linalg.norm(rocket_pos_enu)
-        apparent_size = focal_len_px * RocketFilter.ROCKET_HEIGHT / dist_to_cam
+        apparent_size = self.focal_len_px * RocketFilter.ROCKET_HEIGHT / dist_to_cam
 
         return np.array([
             azimuth_bearing,
@@ -195,6 +196,8 @@ class RocketFilter:
             self.writer.add_scalar(f'ukf/x_{i}', x, time*100)
         for i,j in product(range(self.P.shape[0]), range(self.P.shape[1])):
             self.writer.add_scalar(f'ukf/P_{i}_{j}', self.P[i,j], time*100)
+        self.writer.add_scalar('ukf/bearing_log_likelihood', self.bearing_ukf.log_likelihood, time*100)
+        self.writer.add_scalar('ukf/telem_log_likelihood', self.telem_ukf.log_likelihood, time*100)
 
     def predict_update_bearing(self, time: float, z: np.ndarray):
         '''

@@ -62,7 +62,7 @@ class Tracker:
     
     def start_tracking(self, initial_cam_orientation: tuple[float,float]):
         self.initial_cam_orientation = initial_cam_orientation
-        self.filter = RocketFilter(self.environment.get_pad_pos_gps(), self.gps_pos, self.initial_cam_orientation, writer=self.logger)
+        self.filter = RocketFilter(self.environment.get_pad_pos_gps(), self.gps_pos, self.initial_cam_orientation, self.focal_len_pixels, writer=self.logger)
         self.launch_detector = None
         self.active_tracking = True
         self.img_tracker.start_new_tracking()
@@ -116,10 +116,12 @@ class Tracker:
             self.filter.predict_update_bearing(time, np.array([az, alt, bbox_diagonal_len]))
 
 
-        predicted_pixel_pos = self._az_alt_to_pixel_pos(self.filter.hx_bearing(self.filter.x)[:2])
+        pred_measurement = self.filter.hx_bearing(self.filter.x)
+        predicted_pixel_pos = self._az_alt_to_pixel_pos(pred_measurement[:2])
         cv.circle(img, predicted_pixel_pos, 10, (255,0,0), 2)
         self.logger.add_scalar("pixel position/x_filter", predicted_pixel_pos[0], time*100)
         self.logger.add_scalar("pixel position/y_filter", predicted_pixel_pos[1], time*100)
+        self.logger.add_scalar("pixel position/bbox_diag", pred_measurement[2], time*100)
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)

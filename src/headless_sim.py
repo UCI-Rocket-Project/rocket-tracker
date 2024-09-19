@@ -16,7 +16,7 @@ import shutil
 
 class HeadlessSim:
     def __init__(self):
-        self.camera_res = (1920, 1080)
+        self.camera_res = (1920//2, 1080)
         self.camera_fov = 0.9
         focal_len_pixels = self.camera_res[0]/(2*np.tan(np.deg2rad(self.camera_fov/2)))
         # fov should be around 0.9 degrees IRL
@@ -76,15 +76,14 @@ class HeadlessSim:
                 '''
 
                 rocket_ecef_pos = self.rocket.get_position_ecef(self.time - self.launch_time)
-                rocket_orientation = self.rocket.get_quarternion(self.time - self.launch_time)
                 rocket_enu_camera_frame_pos = pm.ecef2enu(*rocket_ecef_pos, *self.environment.get_cam_pos_gps())                
 
                 # reference points are the top and bottom of the rocket plus or minus the rocket radius
                 # this will assume that the rocket is pointed in the direction of its velocity vector
                 rocket_radius = 0.9
                 rocket_height = 6.5
-                transform = R.from_quat(rocket_orientation)
-                vel_direction = transform.apply([0,0,1])
+                rocket_orientation = self.rocket.get_orientation(self.time - self.launch_time)
+                vel_direction = rocket_orientation.apply([0,0,1])
 
                 top_point = rocket_enu_camera_frame_pos + rocket_height/2 * vel_direction
                 bottom_point = rocket_enu_camera_frame_pos - rocket_height/2 * vel_direction
@@ -119,7 +118,9 @@ class HeadlessSim:
 
                 min_x, min_y = np.min(pixel_coords, axis=0)
                 max_x, max_y = np.max(pixel_coords, axis=0)
-                return min_x, min_y, max_x, max_y
+                center_x = int((min_x+max_x)/2)
+                center_y = int((min_y+max_y)/2)
+                return center_x, center_y, int(max_x-min_x), int(max_y-min_y)
             
         self.img_tracker = MockImageTracker()
                     
@@ -170,6 +171,9 @@ class HeadlessSim:
         self.logger.add_scalar("enu position/y", y, step_time*100)
         self.logger.add_scalar("enu position/z", z, step_time*100)
 
+        dist_to_camera = np.linalg.norm(rocket_pos_ecef - np.array(pm.geodetic2ecef(*self.cam_geodetic_location)))
+        self.logger.add_scalar('mount/distance', dist_to_camera, step_time*100)
+
         self.logger.add_scalar("enu velocity/x", rocket_vel[0], step_time*100)
         self.logger.add_scalar("enu velocity/y", rocket_vel[1], step_time*100)
         self.logger.add_scalar("enu velocity/z", rocket_vel[2], step_time*100)
@@ -181,6 +185,9 @@ class HeadlessSim:
         pixel_x, pixel_y = bbox[:2]
         self.logger.add_scalar("pixel position/x", pixel_x, step_time*100)
         self.logger.add_scalar("pixel position/y", pixel_y, step_time*100)
+        self.logger.add_scalar("pixel position/bbox_w", bbox[2], step_time*100)
+        self.logger.add_scalar("pixel position/bbox_h", bbox[3], step_time*100)
+        self.logger.add_scalar("pixel position/bbox_diag", np.linalg.norm(bbox[2:]), step_time*100)
 
         az_new, alt_new = self._pixel_pos_to_az_alt(bbox[:2])
         self.logger.add_scalar("bearing/azimuth", az_new, step_time*100)

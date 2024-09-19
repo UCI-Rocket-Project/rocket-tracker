@@ -26,6 +26,14 @@
             "justMyCode": true
         },
         {
+            "name": "Python: debug module src.headless_sim",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "module": "src.headless_sim",
+            "justMyCode": true
+        },
+        {
             "name": "Python Debugger: Python File",
             "type": "debugpy",
             "request": "launch",

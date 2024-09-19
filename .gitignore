@@ -5,5 +5,5 @@ __pycache__
 *.log
 runs
 runs_archive
-.vscode
+.vscode/*
 !.vscode/launch.json
