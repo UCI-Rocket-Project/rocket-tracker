@@ -19,10 +19,12 @@ if __name__ == "__main__":
     pad_enu_pos = pm.geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
     azimuth = np.rad2deg(np.arctan2(pad_enu_pos[1], pad_enu_pos[0]))
     altitude = np.rad2deg(np.arctan2(pad_enu_pos[2], np.linalg.norm(pad_enu_pos[:2])))
+    focal_len_px = 4000
     filter = RocketFilter(
         pad_geodetic_pos, 
         cam_geodetic_location, 
         (azimuth, altitude),
+        focal_len_px,
         launch_time=0,
         writer=writer_pred
     )

@@ -18,11 +18,11 @@
             "justMyCode": true
         },
         {
-            "name": "Python: debug module src.component_algos.test_rocket_filter",
+            "name": "Python: debug module src.test_rocket_filter",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
-            "module": "src.component_algos.test_rocket_filter",
+            "module": "src.test_rocket_filter",
             "justMyCode": true
         },
         {
