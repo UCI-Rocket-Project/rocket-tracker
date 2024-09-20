@@ -1,6 +1,7 @@
 import traceback
 from simulation.flight_model import test_flight
 from src.component_algos.rocket_filter import RocketFilter
+from src.component_algos.depth_of_field import MM_PER_PIXEL
 import numpy as np
 import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
@@ -11,7 +12,7 @@ from tqdm import tqdm
 if __name__ == "__main__":
     # pad_geodetic_pos = np.array([35.347104, -117.808953, 620]) # the flight sim doesn't always use the _exact_ same position every time >:(
     pad_geodetic_pos = np.array([test_flight.latitude(0), test_flight.longitude(0), test_flight.z(0)])
-    cam_geodetic_location = np.array([35.353056, -117.811944, 620])
+    cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
     writer_gt = SummaryWriter(f'runs/test_rocket_filter/true')
     writer_pred = SummaryWriter(f'runs/test_rocket_filter/pred')
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     pad_enu_pos = pm.geodetic2enu(*pad_geodetic_pos, *cam_geodetic_location)
     azimuth = np.rad2deg(np.arctan2(pad_enu_pos[1], pad_enu_pos[0]))
     altitude = np.rad2deg(np.arctan2(pad_enu_pos[2], np.linalg.norm(pad_enu_pos[:2])))
-    focal_len_px = 4000
+    focal_len_px = 180 / MM_PER_PIXEL
     filter = RocketFilter(
         pad_geodetic_pos, 
         cam_geodetic_location, 
@@ -30,7 +31,6 @@ if __name__ == "__main__":
     )
 
     start_geodetic = test_flight.latitude(0), test_flight.longitude(0), test_flight.z(0)
-    print(start_geodetic)
     start_ecef = pm.geodetic2ecef(*start_geodetic)
 
     start_time = 0
@@ -116,7 +116,6 @@ if __name__ == "__main__":
         writer_pred.add_scalar("enu acceleration/y", accel_enu[1], t*100)
         writer_pred.add_scalar("enu acceleration/z", accel_enu[2], t*100)
         writer_pred.add_scalar("thrust magnitude", filter.x[6], t*100)
-        writer_pred.add_scalar("jerk", filter.x[7], t*100)
         pred_measurement = filter.hx_bearing(filter.x)
         writer_pred.add_scalar("bearing/azimuth", pred_measurement[0], t*100)
         writer_pred.add_scalar("bearing/altitude", pred_measurement[1], t*100)

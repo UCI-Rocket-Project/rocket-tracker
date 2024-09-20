@@ -38,7 +38,7 @@ def visualize_df(df: pd.DataFrame):
     first_filter_x = None
 
 
-    cam_geodetic_location = np.array([35.353056, -117.811944, 620])
+    cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
     row0 = df.iloc[0]
     rocket_start_ecef = np.array([row0['pred/ukf/x_0'], row0['pred/ukf/x_1'], row0['pred/ukf/x_2']])
     pad_geodetic_location = pm.ecef2geodetic(*rocket_start_ecef)
@@ -64,6 +64,7 @@ def visualize_df(df: pd.DataFrame):
             pad_geodetic_location,
             cam_geodetic_location,
             cam_initial_bearing,
+            focal_len_px=0, # placeholder since this isn't used
             launch_time=0,
         )
 
@@ -93,6 +94,8 @@ def visualize_df(df: pd.DataFrame):
                 filter.predict(i*dt)
             except np.linalg.LinAlgError:
                 print("Singular matrix")
+                np.set_printoptions(precision=2, linewidth=150)
+                print(filter.P)
                 break
         plot_data.append(
             [time, projected_path, projected_vel, pred_vel_enu, projected_accel, projected_pos_covariance]

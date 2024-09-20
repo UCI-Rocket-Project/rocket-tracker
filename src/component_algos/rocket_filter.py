@@ -19,7 +19,7 @@ def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from o
             pass
 
 class RocketFilter:
-    STATE_DIM = 8
+    STATE_DIM = 7
     ROCKET_HEIGHT = 6.5
     def __init__(self, 
                 pad_geodetic_location: tuple[float,float,float], 
@@ -45,8 +45,7 @@ class RocketFilter:
 
         self.pad_geodetic_location = pad_geodetic_location
         self.cam_geodetic_location = cam_geodetic_location
-        # self.drag_coefficient = drag_coefficient
-        self.drag_coefficient = 0#drag_coefficient
+        self.drag_coefficient = drag_coefficient
         self.initial_cam_orientation = initial_cam_orientation
         self.writer = writer
         self.focal_len_px = focal_len_px
@@ -61,27 +60,26 @@ class RocketFilter:
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
         self.x[3:6] = np.zeros(3) # velocity
         self.x[6] = 10 # linear acceleration
-        self.x[7] = 0 # linear jerk
 
-        position_std =  1e-3
-        vel_std = 1e-3
-        state_std = np.array([position_std, position_std, position_std, vel_std, vel_std, vel_std, 2, 1e-9])
+        position_std =  1e-2
+        vel_std = 1e-2
+        state_std = np.array([position_std, position_std, position_std, vel_std, vel_std, vel_std, 2])
         # assume we know the initial position to within 0.1m, velocity to within 0.01m/s, but acceleration
         # and jerk are less certain
         self.P = np.diag(np.square(state_std)) # state covariance matrix
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        pos_process_std = 1e-2
-        vel_process_std = 1e-6
-        process_std = np.array([pos_process_std, pos_process_std, pos_process_std, vel_process_std, vel_process_std, vel_process_std, 1,1e-9])
+        pos_process_std = 1e-4
+        vel_process_std = 1e-2
+        process_std = np.array([pos_process_std, pos_process_std, pos_process_std, vel_process_std, vel_process_std, vel_process_std, 1])
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_std = np.array([10,10,10,1])
+        telem_measurement_std = 1e-1*np.array([1,1,1,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = np.array([1e-5, 1e-5, 1])
+        bearing_measurement_std = 1e-1*np.array([1e-2, 1e-2, 1e-2])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
 
 
@@ -170,11 +168,10 @@ class RocketFilter:
         vel_magnitude = np.linalg.norm(x[3:6])
         # thrust direction is unit vector in velocity direction, or straight up if velocity is low (for initial lift off the launchpad)
         thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
-        jerk = thrust_direction * x[7]
         drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
         accel = thrust_direction * np.abs(x[6]) + grav_vec + drag
-        x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6 * jerk * dt**3
-        x[3:6] += accel * dt + 0.5 * jerk * dt**2
+        x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6
+        x[3:6] += accel * dt + 0.5
         # x[6] += x[7] * dt
         return x
 
