@@ -124,12 +124,20 @@ class Tracker:
         self.logger.add_scalar("pixel position/bbox_diag", pred_measurement[2], time*100)
 
         if telem_measurements is not None:
-            ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.altimeter_reading)
+            ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height)
             alt = telem_measurements.altimeter_reading
-            z = np.array([*ecef_pos, alt])
+            ned_vel = np.array([telem_measurements.v_north, telem_measurements.v_east, telem_measurements.v_down])
+            enu_vel = np.array([ned_vel[1], ned_vel[0], -ned_vel[2]])
+            ecef_vel = pm.enu2ecef(*enu_vel, *pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height))
+
+            z = np.array([*ecef_pos, alt, *ecef_vel])
             self.logger.add_scalar("telemetry/lat", telem_measurements.gps_lat, time*100)
             self.logger.add_scalar("telemetry/lng", telem_measurements.gps_lng, time*100)
+            self.logger.add_scalar("telemetry/gps_alt", telem_measurements.gps_height, time*100)
             self.logger.add_scalar("telemetry/alt", telem_measurements.altimeter_reading, time*100)
+            self.logger.add_scalar("telemetry/v_north", telem_measurements.v_north, time*100)
+            self.logger.add_scalar("telemetry/v_east", telem_measurements.v_east, time*100)
+            self.logger.add_scalar("telemetry/v_down", telem_measurements.v_down, time*100)
             self.filter.predict_update_telem(time, z)
 
         ecef_pos = self.filter.x[:3]

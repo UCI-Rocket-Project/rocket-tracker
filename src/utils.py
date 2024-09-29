@@ -16,7 +16,11 @@ class TelemetryData:
     '''
     gps_lat: float
     gps_lng: float
+    gps_height: float
     altimeter_reading: float
+    v_north: float
+    v_east: float
+    v_down: float
     accel_x: float
     accel_y: float
     accel_z: float

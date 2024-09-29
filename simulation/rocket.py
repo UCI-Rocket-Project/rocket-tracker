@@ -37,6 +37,11 @@ class Rocket:
             time -= self.launch_time
         return np.array([test_flight.vx(time), test_flight.vy(time), test_flight.vz(time)])
     
+    def get_velocity_ecef(self, time):
+        vel_enu = self.get_velocity(time)
+        current_pos_geodetic = pm.ecef2geodetic(self.get_position_ecef(time))
+        return np.array(pm.enu2ecef(*vel_enu, *current_pos_geodetic))
+    
     def get_acceleration(self, time):
         if time < self.launch_time:
             time = 0
@@ -51,13 +56,19 @@ class Rocket:
 
         adjusted_time = max(0,time - self.launch_time)
 
+        v_enu = self.get_velocity(adjusted_time)
+
         return TelemetryData(
             gps_lat=test_flight.latitude(adjusted_time) + np.random.normal(0,GPS_NOISE_STD),
             gps_lng=test_flight.longitude(adjusted_time) + np.random.normal(0,GPS_NOISE_STD),
             altimeter_reading=test_flight.z(adjusted_time) + np.random.normal(0,ALT_NOISE_STD),
+            gps_height=test_flight.z(adjusted_time) + np.random.normal(0,ALT_NOISE_STD),
             accel_x = test_flight.ax(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
             accel_y = test_flight.ay(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
             accel_z = test_flight.az(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
+            v_north = v_enu[1],
+            v_east = v_enu[0],
+            v_down = -v_enu[2],
             time = time
         )
 

@@ -54,7 +54,7 @@ class RocketFilter:
         self._last_update_time = launch_time
 
         self._x_dim = RocketFilter.STATE_DIM
-        self._z_dim = 4
+        self._z_dim = 7
         self.x = np.empty(self._x_dim) # state vector
         self.x[0:3] = pm.geodetic2ecef(*pad_geodetic_location)
         self.original_direction = self.x[:3] / np.linalg.norm(self.x[:3])
@@ -76,7 +76,7 @@ class RocketFilter:
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_std = np.array([10,10,10,1])
+        telem_measurement_std = np.array([10,10,10,1,1,1,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
         bearing_measurement_std = np.array([1e-5, 1e-5, 1])
@@ -155,6 +155,7 @@ class RocketFilter:
         return np.array([
             x[0], x[1], x[2], # ECEF position
             geodetic[2], # altitude,
+            x[3], x[4], x[5], # ECEF velocity
         ])
     
     def fx(self, x: np.ndarray, dt: float):

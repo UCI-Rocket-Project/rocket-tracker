@@ -32,7 +32,7 @@ class HeadlessSim:
         self.launch_time = 2
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         self.time = 0
-        self.sim_duration_seconds = 30
+        self.sim_duration_seconds = 72
         self.dt = 1/30
         self.last_time = None
         self.telescope = SimTelescope(-69.62, 0)
