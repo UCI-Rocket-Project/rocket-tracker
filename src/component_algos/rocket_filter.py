@@ -70,17 +70,19 @@ class RocketFilter:
 
 
         # assume position and velocity have little process noise, but acceleration and jerk have more
-        pos_process_std = 1e-4
-        vel_process_std = 1e-2
+        pos_process_std = 1e-2
+        vel_process_std = 1e-6
         process_std = np.array([pos_process_std, pos_process_std, pos_process_std, vel_process_std, vel_process_std, vel_process_std, 1])
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_std = 1e-1*np.array([1,1,1,1])
+        telem_measurement_std = np.array([10,10,10,1])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
-        bearing_measurement_std = 1e-1*np.array([1e-2, 1e-2, 1e-2])
+        bearing_measurement_std = np.array([1e-5, 1e-5, 1])
         self.R_bearing = np.diag(np.square(bearing_measurement_std)) # measurement noise covariance matrix
+
+
 
 
         self.telem_ukf = UnscentedKalmanFilter(
