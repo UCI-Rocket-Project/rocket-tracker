@@ -76,7 +76,14 @@ class RocketFilter:
         self.Q = np.diag(np.square(process_std)) # process noise covariance matrix
 
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
-        telem_measurement_std = np.array([10,10,10,1,1,1,1])
+        gps_pos_std_meters = 1
+        alt_std_meters = 1
+        gps_vel_std_meters = 0.1
+        telem_measurement_std = np.array([
+            gps_pos_std_meters,gps_pos_std_meters,gps_pos_std_meters,
+            alt_std_meters,
+            gps_vel_std_meters,gps_vel_std_meters,gps_vel_std_meters
+        ])
         self.R_telem = np.diag(np.square(telem_measurement_std)) # measurement noise covariance matrix
 
         bearing_measurement_std = np.array([1e-5, 1e-5, 1])
