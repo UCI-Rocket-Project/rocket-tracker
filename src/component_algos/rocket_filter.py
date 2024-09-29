@@ -78,8 +78,8 @@ class RocketFilter:
         # assume GPS is accurate to within 100m, altimeter is accurate to within 1m
         gps_pos_std_meters = 1
         alt_std_meters = 1
-        gps_vel_std_meters = 0.1
-        telem_measurement_std = np.array([
+        gps_vel_std_meters = 1
+        telem_measurement_std = 1e-3*np.array([
             gps_pos_std_meters,gps_pos_std_meters,gps_pos_std_meters,
             alt_std_meters,
             gps_vel_std_meters,gps_vel_std_meters,gps_vel_std_meters
