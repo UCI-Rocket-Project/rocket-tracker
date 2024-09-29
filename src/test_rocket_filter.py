@@ -49,7 +49,7 @@ if __name__ == "__main__":
         xyz_ecef = pm.geodetic2ecef(*xyz_geodetic)
 
         v_enu = test_flight.vx(t), test_flight.vy(t), test_flight.vz(t)
-        v_ecef = np.array(pm.enu2ecef(*v_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
+        v_ecef = np.array(pm.enu2ecef(*v_enu, *xyz_geodetic)) - xyz_ecef
 
         accel_enu = np.array([test_flight.ax(t), test_flight.ay(t), test_flight.az(t)])
         accel_ecef = np.array(pm.enu2ecef(*accel_enu, *xyz_geodetic)) - np.array(pm.enu2ecef(0,0,0,*xyz_geodetic))
@@ -82,7 +82,6 @@ if __name__ == "__main__":
         try:
             filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
 
-
             if t - last_telem > telemetry_period:
                 last_telem = t
                 filter.predict_update_telem(
@@ -90,6 +89,7 @@ if __name__ == "__main__":
                     np.array([
                         *(xyz_ecef + pos_noise),
                         test_flight.z(t)+altimeter_noise,
+                        *v_ecef,
                     ])
                 )
         except np.linalg.LinAlgError:
