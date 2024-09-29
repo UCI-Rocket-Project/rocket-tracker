@@ -128,7 +128,7 @@ class Tracker:
             alt = telem_measurements.altimeter_reading
             ned_vel = np.array([telem_measurements.v_north, telem_measurements.v_east, telem_measurements.v_down])
             enu_vel = np.array([ned_vel[1], ned_vel[0], -ned_vel[2]])
-            ecef_vel = pm.enu2ecef(*enu_vel, *pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height))
+            ecef_vel = np.array(pm.enu2ecef(*enu_vel, telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height)) - np.array(ecef_pos)
 
             z = np.array([*ecef_pos, alt, *ecef_vel])
             self.logger.add_scalar("telemetry/lat", telem_measurements.gps_lat, time*100)
