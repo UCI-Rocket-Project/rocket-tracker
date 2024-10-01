@@ -37,7 +37,7 @@ if __name__ == "__main__":
     end_time = 70
     samples = 140
     dt = (end_time - start_time) / samples
-    telemetry_period = 1
+    telemetry_period = 2
     last_telem = start_time
     err = []
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         writer_gt.add_scalar("bearing/size",size, t*100)
 
         try:
-            filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
+            # filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
 
             if t - last_telem > telemetry_period:
                 last_telem = t
@@ -88,10 +88,11 @@ if __name__ == "__main__":
                     t,
                     np.array([
                         *(xyz_ecef + pos_noise),
-                        test_flight.z(t)+altimeter_noise,
                         *v_ecef,
                     ])
                 )
+            else:
+                filter.predict(t)
         except np.linalg.LinAlgError:
             traceback.print_exc()
             break

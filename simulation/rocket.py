@@ -48,6 +48,8 @@ class Rocket:
         else:
             time -= self.launch_time
         return np.array([test_flight.ax(time), test_flight.ay(time), test_flight.az(time)])
+    
+
 
     def get_telemetry(self, time):
         GPS_NOISE_STD = 0#1e-4
@@ -64,7 +66,6 @@ class Rocket:
         return TelemetryData(
             gps_lat=xyz_geodetic[0] + np.random.normal(0,GPS_NOISE_STD),
             gps_lng=xyz_geodetic[1] + np.random.normal(0,GPS_NOISE_STD),
-            altimeter_reading=xyz_geodetic[2] + np.random.normal(0,ALT_NOISE_STD),
             gps_height=xyz_geodetic[2] + np.random.normal(0,ALT_NOISE_STD),
             accel_x = test_flight.ax(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),
             accel_y = test_flight.ay(adjusted_time) + np.random.normal(0,ACC_NOISE_STD),

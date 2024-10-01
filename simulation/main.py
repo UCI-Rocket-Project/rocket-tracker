@@ -18,6 +18,7 @@ from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
 from scipy.spatial.transform import Rotation as R
 import shutil
 import line_profiler
+from time import time
 print("Removing old runs directory")
 if os.path.exists("runs"):
     shutil.rmtree("runs")
@@ -86,6 +87,9 @@ class Sim(ShowBase):
         cam_fstop = 7
         self.latest_img = None
 
+        self.last_telem_time = time()
+        self.telem_update_interval = 0.5
+
         class SimulationEnvironment(Environment):
             def __init__(env_self):
                 super().__init__(self.pad_geodetic_pos, self.cam_geodetic_location, camera_res, focal_len_pixels, cam_fstop)
@@ -145,7 +149,9 @@ class Sim(ShowBase):
                 return self.focus_offset
 
             def get_telemetry(env_self) -> TelemetryData:
-                return self.telem # updated in rocketPhysicsTask
+                if time() > self.last_telem_time + self.telem_update_interval:
+                    self.last_telem_time = time()
+                    return self.telem # updated in rocketPhysicsTask
             
         estimate_logger = SummaryWriter("runs/simulation/pred")
         

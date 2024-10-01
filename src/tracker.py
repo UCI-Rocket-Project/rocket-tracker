@@ -12,6 +12,7 @@ import pymap3d as pm
 from scipy.spatial.transform import Rotation as R
 import cv2 as cv
 from src.component_algos.depth_of_field import DOFCalculator, MM_PER_PIXEL
+import traceback
 
 
 class Tracker:
@@ -125,20 +126,31 @@ class Tracker:
 
         if telem_measurements is not None:
             ecef_pos = pm.geodetic2ecef(telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height)
-            alt = telem_measurements.altimeter_reading
             ned_vel = np.array([telem_measurements.v_north, telem_measurements.v_east, telem_measurements.v_down])
             enu_vel = np.array([ned_vel[1], ned_vel[0], -ned_vel[2]])
             ecef_vel = np.array(pm.enu2ecef(*enu_vel, telem_measurements.gps_lat, telem_measurements.gps_lng, telem_measurements.gps_height)) - np.array(ecef_pos)
 
-            z = np.array([*ecef_pos, alt, *ecef_vel])
+            z = np.array([*ecef_pos, *ecef_vel])
             self.logger.add_scalar("telemetry/lat", telem_measurements.gps_lat, time*100)
             self.logger.add_scalar("telemetry/lng", telem_measurements.gps_lng, time*100)
             self.logger.add_scalar("telemetry/gps_alt", telem_measurements.gps_height, time*100)
-            self.logger.add_scalar("telemetry/alt", telem_measurements.altimeter_reading, time*100)
             self.logger.add_scalar("telemetry/v_north", telem_measurements.v_north, time*100)
             self.logger.add_scalar("telemetry/v_east", telem_measurements.v_east, time*100)
             self.logger.add_scalar("telemetry/v_down", telem_measurements.v_down, time*100)
             self.filter.predict_update_telem(time, z)
+        
+        if pixel_pos is None and telem_measurements is None:
+            try:
+                self.filter.predict(time)
+            except np.linalg.LinAlgError:
+                traceback.print_exc()
+                print(self.filter.P)
+                import matplotlib.pyplot as plt
+
+                fig, ax = plt.subplots()
+
+                ax.matshow(self.filter.P, cmap=plt.cm.Blues)
+                plt.show()
 
         ecef_pos = self.filter.x[:3]
         target_az, target_alt = self._ecef_to_az_alt(ecef_pos)
