@@ -216,7 +216,6 @@ class RocketFilter:
         self.bearing_ekf.predict()
         self._last_update_time = time_since_first_update
         # not sure if the jacobian should be calculated with x before or after the prediction
-        print(self.hx_bearing(self.bearing_ekf.x), z)
         self.bearing_ekf.update(z, HJacobian=jacobian(self.hx_bearing), Hx=self.hx_bearing)
         self.x = self.bearing_ekf.x
         self.P = self.bearing_ekf.P
