@@ -106,6 +106,7 @@ class RocketFilter:
             dim_x=self._x_dim,
             dim_z=3,
         )
+
         self.bearing_ekf.x = self.x
         self.bearing_ekf.P = self.P
         self.bearing_ekf.Q = self.Q
@@ -167,7 +168,7 @@ class RocketFilter:
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
         # thrust direction is unit vector in velocity direction, or straight up if velocity is low (for initial lift off the launchpad)
-        thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
+        thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 1 else -grav_vec / 9.81
         drag = -self.drag_coefficient * np.sum(np.square(x[3:6])) * thrust_direction
         # if for drag we do vel_magnitude**2, it blows up the gradient when velocity is zero
         # because of the square root in the norm.
@@ -210,6 +211,9 @@ class RocketFilter:
         dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
         self.bearing_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
+        def px(u=0):
+            self.bearing_ekf.x=self.fx(self.x, dt)
+        self.bearing_ekf.predict_x = px
         self.bearing_ekf.predict()
         self._last_update_time = time_since_first_update
         # not sure if the jacobian should be calculated with x before or after the prediction
@@ -235,6 +239,9 @@ class RocketFilter:
         self.flight_time = time_since_first_update
         self._last_update_time = time_since_first_update
         self.telem_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
+        def px(u=0):
+            self.telem_ekf.x=self.fx(self.x, dt)
+        self.telem_ekf.predict_x = px
         self.telem_ekf.predict()
         self.telem_ekf.update(z, HJacobian=jacobian(self.hx_telem), Hx=self.hx_telem)
         self.x = self.telem_ekf.x
@@ -253,7 +260,10 @@ class RocketFilter:
         self._last_update_time = time_since_first_update
         self.telem_ekf.x = self.x
         self.telem_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
-        self.telem_ekf.predict(dt)
+        def px(u=0):
+            self.telem_ekf.x=self.fx(self.x, dt)
+        self.telem_ekf.predict_x = px
+        self.telem_ekf.predict()
         self.x = self.telem_ekf.x
         self.P = self.telem_ekf.P
         self.bearing_ekf.x = self.telem_ekf.x
