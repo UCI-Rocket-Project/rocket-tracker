@@ -120,23 +120,28 @@ class RocketFilter:
         we could also add measurements of the rocket's apparent size and orientation.
         '''
 
-        rocket_initial_enu_pos = pm.geodetic2enu(*self.pad_geodetic_location, *self.cam_geodetic_location)
-        rocket_pos_enu = pm.ecef2enu(*x[:3], *self.cam_geodetic_location)
+        rocket_initial_enu_pos = np.array(pm.geodetic2enu(*self.pad_geodetic_location, *self.cam_geodetic_location))
+        rocket_pos_enu = np.array(pm.ecef2enu(*x[:3], *self.cam_geodetic_location))
         initial_pos_xy = rocket_initial_enu_pos[:2]
-        initial_pos_xy /= np.linalg.norm(initial_pos_xy)
+        # autograd raises an exception when using np.linalg.norm so we have to do this manually
+        def norm(x): 
+            return np.sqrt(np.sum(np.square(x)))
+        initial_pos_xy /= norm(initial_pos_xy)
         rocket_pos_xy = rocket_pos_enu[:2]
-        rocket_pos_xy /= np.linalg.norm(rocket_pos_xy)
+        rocket_pos_xy /= norm(rocket_pos_xy)
         
         # im a dumbass so I didn't figure out this math myself
         # https://stackoverflow.com/a/16544330
         dot = np.dot(initial_pos_xy, rocket_pos_xy)
-        det = np.cross(initial_pos_xy, rocket_pos_xy)
+        # autograd also crashes when trying to use np.cross
+        # equivalent to `det=np.cross(initial_pos_xy, rocket_pos_xy)`
+        det = initial_pos_xy[0] * rocket_pos_xy[1] - initial_pos_xy[1] * rocket_pos_xy[0]
         theta = np.arctan2(det, dot)  # atan2(y, x) or atan2(sin, cos)
         azimuth_bearing = self.initial_cam_orientation[0] + np.rad2deg(theta)
-        elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], np.linalg.norm(rocket_pos_enu[:2])))
+        elevation_bearing = np.rad2deg(np.arctan2(rocket_pos_enu[2], norm(rocket_pos_enu[:2])))
 
         # TODO: rewrite this so it uses better math than similar triangles which assumes the rocket is in the center of the frame
-        dist_to_cam = np.linalg.norm(rocket_pos_enu)
+        dist_to_cam = norm(rocket_pos_enu)
         apparent_size = self.focal_len_px * RocketFilter.ROCKET_HEIGHT / dist_to_cam
 
         return np.array([
@@ -157,9 +162,7 @@ class RocketFilter:
     
     def fx(self, x: np.ndarray, dt: float):
         '''
-        State transition function. Has side effect of setting x[6] (thrust acceleration)
-        to zero if flight time is over 20. Since it reads that from `self` it's highly
-        coupled and that's probably bad. TODO: figure out a better way.
+        State transition function
         '''
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
@@ -210,7 +213,7 @@ class RocketFilter:
         self.bearing_ekf.predict()
         self._last_update_time = time_since_first_update
         # not sure if the jacobian should be calculated with x before or after the prediction
-        self.bearing_ekf.update(z, HJacobian=jacobian(self.hx_bearing), Hx=self.hx_telem)
+        self.bearing_ekf.update(z, HJacobian=jacobian(self.hx_bearing), Hx=self.hx_bearing)
         self.x = self.bearing_ekf.x
         self.P = self.bearing_ekf.P
         self.telem_ekf.x = self.bearing_ekf.x
