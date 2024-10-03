@@ -40,10 +40,10 @@ def visualize_df(df: pd.DataFrame):
 
     cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
     row0 = df.iloc[0]
-    rocket_start_ecef = np.array([row0['pred/ukf/x_0'], row0['pred/ukf/x_1'], row0['pred/ukf/x_2']])
+    rocket_start_ecef = np.array([row0['pred/ekf/x_0'], row0['pred/ekf/x_1'], row0['pred/ekf/x_2']])
     pad_geodetic_location = pm.ecef2geodetic(*rocket_start_ecef)
 
-    cam_initial_bearing = (row0['pred/ukf/azi_measured'], row0['pred/ukf/alt_measured'])
+    cam_initial_bearing = (row0['true/bearing/azimuth'], row0['true/bearing/altitude'])
 
     for time, row in df.iterrows():
         enu_x = row['true/enu position/x']
@@ -57,8 +57,8 @@ def visualize_df(df: pd.DataFrame):
         actual_path.append(np.array([enu_x, enu_y, enu_z]))
         actual_vel.append(np.array([v_enu_x, v_enu_y, v_enu_z]))
 
-        filter_x = np.array([row[f'pred/ukf/x_{i}'] for i in range(RocketFilter.STATE_DIM)])
-        filter_P = np.array([row[f'pred/ukf/P_{i}_{j}'] for i,j in product(range(RocketFilter.STATE_DIM), range(RocketFilter.STATE_DIM))]).reshape(RocketFilter.STATE_DIM, RocketFilter.STATE_DIM)
+        filter_x = np.array([row[f'pred/ekf/x_{i}'] for i in range(RocketFilter.STATE_DIM)])
+        filter_P = np.array([row[f'pred/ekf/P_{i}_{j}'] for i,j in product(range(RocketFilter.STATE_DIM), range(RocketFilter.STATE_DIM))]).reshape(RocketFilter.STATE_DIM, RocketFilter.STATE_DIM)
 
         filter = RocketFilter(
             pad_geodetic_location,
@@ -104,7 +104,7 @@ def visualize_df(df: pd.DataFrame):
     t, projected_path, projected_vel, pred_vel_enu, projected_accel, projected_pos_covariance = plot_data[0]
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_title('Rocket flight path vs UKF predictions')
+    ax.set_title('Rocket flight path vs ekf predictions')
     actual_position_marker = ax.scatter(*actual_path[0], color='C0', s=30)
     actual_path_line = ax.plot(*zip(*actual_path), label="actual path")
     projected_position_marker = ax.scatter(*projected_path[0], color='C1', s=20)
@@ -170,5 +170,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     df = logs_dir_to_dataframe(args.logs_path)
-    df = df[df['pred/ukf/x_0'].notna()]
+    df = df[df['pred/ekf/x_0'].notna()]
     visualize_df(df)
