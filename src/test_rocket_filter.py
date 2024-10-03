@@ -80,7 +80,7 @@ if __name__ == "__main__":
         writer_gt.add_scalar("bearing/size",size, t*100)
 
         try:
-            # filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
+            filter.predict_update_bearing(t, np.array([azimuth, altitude, size]))
 
             if t - last_telem > telemetry_period:
                 last_telem = t
