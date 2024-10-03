@@ -1,11 +1,14 @@
-import numpy as np
+# import numpy as np
+from functools import partial
+import autograd.numpy as np
+from autograd import jacobian
 import pymap3d as pm
 from torch.utils.tensorboard import SummaryWriter
-from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
+from filterpy.kalman import ExtendedKalmanFilter
 from itertools import product
 from src.component_algos.depth_of_field import MM_PER_PIXEL
 
-#https://kodlab.seas.upenn.edu/uploads/Arun/UKFpaper.pdf
+#https://kodlab.seas.upenn.edu/uploads/Arun/ekfpaper.pdf
 
 def _copy_helper(obj, new_obj): # assign all float and ndarray attributes from obj to new_obj (side effect)
     for attr_name in dir(obj):
@@ -90,31 +93,23 @@ class RocketFilter:
 
 
 
-        self.telem_ukf = UnscentedKalmanFilter(
+        self.telem_ekf = ExtendedKalmanFilter(
             dim_x=self._x_dim,
             dim_z=self._z_dim,
-            dt=1,
-            hx=self.hx_telem,
-            fx=self.fx,
-            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
         )
-        self.telem_ukf.x = self.x
-        self.telem_ukf.P = self.P
-        self.telem_ukf.Q = self.Q
-        self.telem_ukf.R = self.R_telem
+        self.telem_ekf.x = self.x
+        self.telem_ekf.P = self.P
+        self.telem_ekf.Q = self.Q
+        self.telem_ekf.R = self.R_telem
 
-        self.bearing_ukf = UnscentedKalmanFilter(
+        self.bearing_ekf = ExtendedKalmanFilter(
             dim_x=self._x_dim,
             dim_z=3,
-            dt=1,
-            hx=self.hx_bearing,
-            fx=self.fx,
-            points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
         )
-        self.bearing_ukf.x = self.x
-        self.bearing_ukf.P = self.P
-        self.bearing_ukf.Q = self.Q
-        self.bearing_ukf.R = self.R_bearing
+        self.bearing_ekf.x = self.x
+        self.bearing_ekf.P = self.P
+        self.bearing_ekf.Q = self.Q
+        self.bearing_ekf.R = self.R_bearing
         
         self.flight_time = 0
 
@@ -166,19 +161,19 @@ class RocketFilter:
         to zero if flight time is over 20. Since it reads that from `self` it's highly
         coupled and that's probably bad. TODO: figure out a better way.
         '''
-        if self.flight_time > 20:
-            x[6] = 0
-        x = np.copy(x)
         grav_vec = -9.81 * x[:3] / np.linalg.norm(x[:3])
         vel_magnitude = np.linalg.norm(x[3:6])
         # thrust direction is unit vector in velocity direction, or straight up if velocity is low (for initial lift off the launchpad)
         thrust_direction = x[3:6] / vel_magnitude if vel_magnitude > 10 else -grav_vec / 9.81
-        drag = -self.drag_coefficient * vel_magnitude**2 * thrust_direction
+        drag = -self.drag_coefficient * np.sum(np.square(x[3:6])) * thrust_direction
+        # if for drag we do vel_magnitude**2, it blows up the gradient when velocity is zero
+        # because of the square root in the norm.
         accel = thrust_direction * np.abs(x[6]) + grav_vec + drag
-        x[0:3] += x[3:6] * dt + 0.5 * accel * dt**2 + 1/6
-        x[3:6] += accel * dt + 0.5
-        # x[6] += x[7] * dt
-        return x
+        return np.array([
+            *(x[0:3] + x[3:6] * dt + 0.5 * accel * dt**2),
+            *(x[3:6] + accel * dt),
+            x[6] if self.flight_time < 20 else 0
+        ])
 
     def set_launch_time(self, time: float):
         if self._launch_time is not None:
@@ -190,16 +185,16 @@ class RocketFilter:
     def _log_state(self, time: float):
         if self.writer is None:
             raise RuntimeError('Trying to log state without a SummaryWriter passed to the filter')
-        predicted_az, predicted_alt, predicted_size = self.hx_bearing(self.bearing_ukf.x)
-        self.writer.add_scalar('ukf/azi_predicted', predicted_az, time*100)
-        self.writer.add_scalar('ukf/alt_predicted', predicted_alt, time*100)
-        self.writer.add_scalar('ukf/size_predicted', predicted_size, time*100)
+        predicted_az, predicted_alt, predicted_size = self.hx_bearing(self.bearing_ekf.x)
+        self.writer.add_scalar('ekf/azi_predicted', predicted_az, time*100)
+        self.writer.add_scalar('ekf/alt_predicted', predicted_alt, time*100)
+        self.writer.add_scalar('ekf/size_predicted', predicted_size, time*100)
         for i, x in enumerate(self.x):
-            self.writer.add_scalar(f'ukf/x_{i}', x, time*100)
+            self.writer.add_scalar(f'ekf/x_{i}', x, time*100)
         for i,j in product(range(self.P.shape[0]), range(self.P.shape[1])):
-            self.writer.add_scalar(f'ukf/P_{i}_{j}', self.P[i,j], time*100)
-        self.writer.add_scalar('ukf/bearing_log_likelihood', self.bearing_ukf.log_likelihood, time*100)
-        self.writer.add_scalar('ukf/telem_log_likelihood', self.telem_ukf.log_likelihood, time*100)
+            self.writer.add_scalar(f'ekf/P_{i}_{j}', self.P[i,j], time*100)
+        self.writer.add_scalar('ekf/bearing_log_likelihood', self.bearing_ekf.log_likelihood, time*100)
+        self.writer.add_scalar('ekf/telem_log_likelihood', self.telem_ekf.log_likelihood, time*100)
 
     def predict_update_bearing(self, time: float, z: np.ndarray):
         '''
@@ -211,16 +206,18 @@ class RocketFilter:
         time_since_first_update = time - self._launch_time
         dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
-        self.bearing_ukf.predict(dt)
+        self.bearing_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
+        self.bearing_ekf.predict()
         self._last_update_time = time_since_first_update
-        self.bearing_ukf.update(z)
-        self.x = self.bearing_ukf.x
-        self.P = self.bearing_ukf.P
-        self.telem_ukf.x = self.bearing_ukf.x
-        self.telem_ukf.P = self.bearing_ukf.P
+        # not sure if the jacobian should be calculated with x before or after the prediction
+        self.bearing_ekf.update(z, HJacobian=jacobian(self.hx_bearing), Hx=self.hx_telem)
+        self.x = self.bearing_ekf.x
+        self.P = self.bearing_ekf.P
+        self.telem_ekf.x = self.bearing_ekf.x
+        self.telem_ekf.P = self.bearing_ekf.P
         if self.writer is not None:
-            self.writer.add_scalar('ukf/azi_measured', z[0], time*100)
-            self.writer.add_scalar('ukf/alt_measured', z[1], time*100) 
+            self.writer.add_scalar('ekf/azi_measured', z[0], time*100)
+            self.writer.add_scalar('ekf/alt_measured', z[1], time*100) 
             self._log_state(time)
     
     def predict_update_telem(self, time: float, z: np.ndarray):
@@ -234,12 +231,13 @@ class RocketFilter:
         dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
         self._last_update_time = time_since_first_update
-        self.telem_ukf.predict(dt)
-        self.telem_ukf.update(z)
-        self.x = self.telem_ukf.x
-        self.P = self.telem_ukf.P
-        self.bearing_ukf.x = self.telem_ukf.x
-        self.bearing_ukf.P = self.telem_ukf.P
+        self.telem_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
+        self.telem_ekf.predict()
+        self.telem_ekf.update(z, HJacobian=jacobian(self.hx_telem), Hx=self.hx_telem)
+        self.x = self.telem_ekf.x
+        self.P = self.telem_ekf.P
+        self.bearing_ekf.x = self.telem_ekf.x
+        self.bearing_ekf.P = self.telem_ekf.P
         if self.writer is not None:
             self._log_state(time)
 
@@ -250,12 +248,12 @@ class RocketFilter:
         dt = time_since_first_update - self._last_update_time
         self.flight_time = time_since_first_update
         self._last_update_time = time_since_first_update
-        self.telem_ukf.x = self.x
-        self.telem_ukf.predict(dt)
-        self.x = self.telem_ukf.x
-        self.P = self.telem_ukf.P
-        self.bearing_ukf.x = self.telem_ukf.x
-        self.bearing_ukf.P = self.telem_ukf.P
+        self.telem_ekf.x = self.x
+        self.telem_ekf.predict(dt)
+        self.x = self.telem_ekf.x
+        self.P = self.telem_ekf.P
+        self.bearing_ekf.x = self.telem_ekf.x
+        self.bearing_ekf.P = self.telem_ekf.P
                 
     def _quat_mult(self, q1: np.ndarray, q2: np.ndarray):
         '''
@@ -319,20 +317,16 @@ class RocketFilter:
         )
         _copy_helper(self, new_filter)
 
-        def _copy_ukf(ukf: UnscentedKalmanFilter):
-            new_ukf =  UnscentedKalmanFilter(
+        def _copy_ekf(ekf: ExtendedKalmanFilter):
+            new_ekf =  ExtendedKalmanFilter(
                 dim_x=self._x_dim,
                 dim_z=self._z_dim,
-                dt=1,
-                hx=ukf.hx,
-                fx=ukf.fx,
-                points=MerweScaledSigmaPoints(n=self._x_dim, alpha=1e-3, beta=2, kappa=0)
             )
-            _copy_helper(ukf, new_ukf)
+            _copy_helper(ekf, new_ekf)
             # go through every variable, if its float copy directly, if ndarray copy with copy(), otherwise ignore
-            return new_ukf
+            return new_ekf
 
-        new_filter.telem_ukf = _copy_ukf(self.telem_ukf)
-        new_filter.bearing_ukf = _copy_ukf(self.bearing_ukf)
+        new_filter.telem_ekf = _copy_ekf(self.telem_ekf)
+        new_filter.bearing_ekf = _copy_ekf(self.bearing_ekf)
 
         return new_filter
