@@ -252,6 +252,7 @@ class RocketFilter:
         self.flight_time = time_since_first_update
         self._last_update_time = time_since_first_update
         self.telem_ekf.x = self.x
+        self.telem_ekf.F = jacobian(partial(self.fx, dt=dt))(self.x)
         self.telem_ekf.predict(dt)
         self.x = self.telem_ekf.x
         self.P = self.telem_ekf.P
