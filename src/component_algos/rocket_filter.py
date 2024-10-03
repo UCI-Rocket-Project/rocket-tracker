@@ -123,13 +123,12 @@ class RocketFilter:
 
         rocket_initial_enu_pos = np.array(pm.geodetic2enu(*self.pad_geodetic_location, *self.cam_geodetic_location))
         rocket_pos_enu = np.array(pm.ecef2enu(*x[:3], *self.cam_geodetic_location))
-        initial_pos_xy = rocket_initial_enu_pos[:2]
+
         # autograd raises an exception when using np.linalg.norm so we have to do this manually
         def norm(x): 
             return np.sqrt(np.sum(np.square(x)))
-        initial_pos_xy /= norm(initial_pos_xy)
-        rocket_pos_xy = rocket_pos_enu[:2]
-        rocket_pos_xy /= norm(rocket_pos_xy)
+        initial_pos_xy = rocket_initial_enu_pos[:2] / norm(rocket_initial_enu_pos[:2])
+        rocket_pos_xy = rocket_pos_enu[:2] / norm(rocket_pos_enu[:2])
         
         # im a dumbass so I didn't figure out this math myself
         # https://stackoverflow.com/a/16544330
@@ -217,6 +216,7 @@ class RocketFilter:
         self.bearing_ekf.predict()
         self._last_update_time = time_since_first_update
         # not sure if the jacobian should be calculated with x before or after the prediction
+        print(self.hx_bearing(self.bearing_ekf.x), z)
         self.bearing_ekf.update(z, HJacobian=jacobian(self.hx_bearing), Hx=self.hx_bearing)
         self.x = self.bearing_ekf.x
         self.P = self.bearing_ekf.P
