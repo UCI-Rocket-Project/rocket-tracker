@@ -116,7 +116,6 @@ class Tracker:
             bbox_diagonal_len = np.linalg.norm(bbox[2:])
             self.filter.predict_update_bearing(time, np.array([az, alt, bbox_diagonal_len]))
 
-
         pred_measurement = self.filter.hx_bearing(self.filter.x)
         predicted_pixel_pos = self._az_alt_to_pixel_pos(pred_measurement[:2])
         cv.circle(img, predicted_pixel_pos, 10, (255,0,0), 2)
@@ -152,10 +151,8 @@ class Tracker:
                 ax.matshow(self.filter.P, cmap=plt.cm.Blues)
                 plt.show()
 
-        ecef_pos = self.filter.x[:3]
-        target_az, target_alt = self._ecef_to_az_alt(ecef_pos)
         current_az, current_alt = self.environment.get_telescope_orientation()
-
+        ecef_pos = self.filter.x[:3]
         enu_pos = pm.ecef2enu(*ecef_pos, *self.environment.get_pad_pos_gps())
         self.logger.add_scalar("enu position/x", enu_pos[0], time*100)
         self.logger.add_scalar("enu position/y", enu_pos[1], time*100)
@@ -168,8 +165,10 @@ class Tracker:
         self.logger.add_scalar("enu velocity/y", enu_vel[1], time*100)
         self.logger.add_scalar("enu velocity/z", enu_vel[2], time*100)
 
+        target_az, target_alt = self._ecef_to_az_alt(ecef_pos)
         self.logger.add_scalar("bearing/azimuth", target_az, time*100)
         self.logger.add_scalar("bearing/altitude", target_alt, time*100)
+
 
         az_err = current_az - target_az
         alt_err = current_alt - target_alt

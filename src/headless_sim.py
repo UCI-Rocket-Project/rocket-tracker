@@ -4,7 +4,7 @@ from src.utils import TelemetryData, coord_to_pixel
 from simulation.sim_telescope import SimTelescope
 from simulation.rocket import Rocket
 from torch.utils.tensorboard import SummaryWriter
-from src.component_algos.img_tracking import BaseImageTracker
+from src.component_algos.img_tracking import BaseImageTracker, NoDetectionError
 from src.tracker import Tracker
 from scipy.spatial.transform import Rotation as R
 from time import time, sleep
@@ -55,7 +55,7 @@ class HeadlessSim:
                 return self.telescope.slew_rate_azi_alt(v_azimuth, v_altitude)
 
             def get_camera_image(env_self) -> np.ndarray:
-                return np.zeros([1920, 1080], dtype=np.uint8)
+                return np.zeros(self.camera_res, dtype=np.uint8)
 
             def move_focuser(env_self, position: int):
                 self.focuser_position = position
@@ -70,19 +70,19 @@ class HeadlessSim:
                 return self.rocket.get_telemetry(self.time)
         
         class MockImageTracker(BaseImageTracker):
-            def estimate_pos(tracker_self, img: np.ndarray) -> tuple[int, int, int, int]:
+            def estimate_pos(tracker_self, img: np.ndarray, return_infeasible = False) -> tuple[int, int, int, int]:
                 '''
                 Returns bounding box [center_x, center_y, width, height] of the highest confidence detection
                 '''
 
-                rocket_ecef_pos = self.rocket.get_position_ecef(self.time - self.launch_time)
+                rocket_ecef_pos = self.rocket.get_position_ecef(self.time)
                 rocket_enu_camera_frame_pos = pm.ecef2enu(*rocket_ecef_pos, *self.environment.get_cam_pos_gps())                
 
                 # reference points are the top and bottom of the rocket plus or minus the rocket radius
                 # this will assume that the rocket is pointed in the direction of its velocity vector
                 rocket_radius = 0.9
                 rocket_height = 6.5
-                rocket_orientation = self.rocket.get_orientation(self.time - self.launch_time)
+                rocket_orientation = self.rocket.get_orientation(self.time)
                 vel_direction = rocket_orientation.apply([0,0,1])
 
                 top_point = rocket_enu_camera_frame_pos + rocket_height/2 * vel_direction
@@ -120,6 +120,8 @@ class HeadlessSim:
                 max_x, max_y = np.max(pixel_coords, axis=0)
                 center_x = int((min_x+max_x)/2)
                 center_y = int((min_y+max_y)/2)
+                if not return_infeasible and not (0 <= center_x < self.camera_res[0] and 0 <= center_y < self.camera_res[1]):
+                    raise NoDetectionError("No detection found in image")
                 return center_x, center_y, int(max_x-min_x), int(max_y-min_y)
             
         self.img_tracker = MockImageTracker()
@@ -181,7 +183,8 @@ class HeadlessSim:
         self.logger.add_scalar("enu accel/x", rocket_accel[0], step_time*100)
         self.logger.add_scalar("enu accel/y", rocket_accel[1], step_time*100)
         self.logger.add_scalar("enu accel/z", rocket_accel[2], step_time*100)
-        bbox = self.img_tracker.estimate_pos(None)
+
+        bbox = self.img_tracker.estimate_pos(None, return_infeasible=True)
         pixel_x, pixel_y = bbox[:2]
         self.logger.add_scalar("pixel position/x", pixel_x, step_time*100)
         self.logger.add_scalar("pixel position/y", pixel_y, step_time*100)
