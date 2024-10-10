@@ -70,10 +70,20 @@ class HeadlessSim:
                 return self.rocket.get_telemetry(self.time)
         
         class MockImageTracker(BaseImageTracker):
-            def estimate_pos(tracker_self, img: np.ndarray, return_infeasible = False) -> tuple[int, int, int, int]:
+            WRONG_DETECTION_PROB = 0.3
+            NO_DETECTION_PROB = 0.2
+            BOX_SIZE_STDDEV = 20
+            BOX_COORD_STDDEV = 20
+            def estimate_pos(tracker_self, img: np.ndarray, simulate_randomness = True) -> tuple[int, int, int, int]:
                 '''
                 Returns bounding box [center_x, center_y, width, height] of the highest confidence detection
                 '''
+                if simulate_randomness:
+                    rand_num = np.random.rand()
+                    if rand_num < MockImageTracker.NO_DETECTION_PROB:
+                        raise NoDetectionError("No detection found in image")
+                    elif MockImageTracker.NO_DETECTION_PROB <= rand_num < MockImageTracker.NO_DETECTION_PROB + MockImageTracker.WRONG_DETECTION_PROB:
+                        return np.random.randint(0, self.camera_res[0]), np.random.randint(0, self.camera_res[1]), np.random.randint(10, 100), np.random.randint(10, 100)
 
                 rocket_ecef_pos = self.rocket.get_position_ecef(self.time)
                 rocket_enu_camera_frame_pos = pm.ecef2enu(*rocket_ecef_pos, *self.environment.get_cam_pos_gps())                
@@ -120,9 +130,18 @@ class HeadlessSim:
                 max_x, max_y = np.max(pixel_coords, axis=0)
                 center_x = int((min_x+max_x)/2)
                 center_y = int((min_y+max_y)/2)
-                if not return_infeasible and not (0 <= center_x < self.camera_res[0] and 0 <= center_y < self.camera_res[1]):
+                if not simulate_randomness and not (0 <= center_x < self.camera_res[0] and 0 <= center_y < self.camera_res[1]):
                     raise NoDetectionError("No detection found in image")
-                return center_x, center_y, int(max_x-min_x), int(max_y-min_y)
+                
+                if simulate_randomness:
+                    return (
+                        int(np.random.normal(center_x, MockImageTracker.BOX_COORD_STDDEV)),
+                        int(np.random.normal(center_y, MockImageTracker.BOX_COORD_STDDEV)),
+                        int(np.random.normal(max_x-min_x, MockImageTracker.BOX_SIZE_STDDEV)),
+                        int(np.random.normal(max_y-min_y, MockImageTracker.BOX_SIZE_STDDEV))
+                    )
+                else:
+                    return center_x, center_y, int(max_x-min_x), int(max_y-min_y)
             
         self.img_tracker = MockImageTracker()
                     
@@ -184,7 +203,7 @@ class HeadlessSim:
         self.logger.add_scalar("enu accel/y", rocket_accel[1], step_time*100)
         self.logger.add_scalar("enu accel/z", rocket_accel[2], step_time*100)
 
-        bbox = self.img_tracker.estimate_pos(None, return_infeasible=True)
+        bbox = self.img_tracker.estimate_pos(None, simulate_randomness=False)
         pixel_x, pixel_y = bbox[:2]
         self.logger.add_scalar("pixel position/x", pixel_x, step_time*100)
         self.logger.add_scalar("pixel position/y", pixel_y, step_time*100)
