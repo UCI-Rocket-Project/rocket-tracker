@@ -13,7 +13,7 @@ class YOLOImageTracker(BaseImageTracker):
     def __init__(self):
         self.yolo_pipeline = Pipeline.create(
             task="yolov8",
-            model_path=f"{CURRENT_FILEPATH}/rocket_yolov8n.onnx",   # sparsezoo stub or path to local ONNX
+            model_path=f"{CURRENT_FILEPATH}/rocket_yolo11n.onnx",   # sparsezoo stub or path to local ONNX
         )
 
         self.tracked_id = None
