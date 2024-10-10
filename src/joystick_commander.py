@@ -58,6 +58,7 @@ class JoystickCommander:
         self.latest_tracker_pos: np.ndarray = None
         self._auto_track_time = auto_track_time
         self._has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
+        self._image_size: tuple[int,int] = None
 
     def _toggle_tracking(self):
         if not self._tracking:
@@ -73,10 +74,11 @@ class JoystickCommander:
     def _toggle_recording(self):
         if not self.recording:
             # start recording
-            self.video_writer = cv.VideoWriter(f"video_{strftime('%m_%m_%d-%H:%M')}.avi", cv.VideoWriter_fourcc(*'MJPG'), 10, (1920,1080))
+            self.video_writer = cv.VideoWriter(f"video_{strftime('%m_%m_%d-%H:%M')}.mp4", cv.VideoWriter_fourcc(*'MP4V'), 10, self._image_size)
         else:
             # stop recording
             self.video_writer.release()
+            print("done releasing video writer")
             self.video_writer = None
         self.recording = not self.recording
         
@@ -147,6 +149,8 @@ class JoystickCommander:
             self.environment.move_telescope(-1,0)
         elif key == ord('t'):
             self._toggle_tracking()
+        elif key == ord('r'):
+            self._toggle_recording()
         else:
             self.environment.move_telescope(0,0)
 
@@ -162,8 +166,6 @@ class JoystickCommander:
         for i, line in enumerate(readout_text.split('\n')):
             cv.putText(img, line, (10,20+i*15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
-        if self.recording:
-            self.video_writer.write(img)
 
         # make tallest dimension 1080
         scale_factor = max(1, max(img.shape[:2])//1080)
@@ -181,6 +183,8 @@ class JoystickCommander:
         rect_thickness = -1 if self.tracking else 2
         cv.rectangle(img, (w-50, h-50), (w-20, h-20), (255,0,255), rect_thickness)
 
+        if self.recording:
+            self.video_writer.write(img)
         cv.imshow("Camera Image", img)
 
     @line_profiler.profile
@@ -204,6 +208,9 @@ class JoystickCommander:
         self._handle_keypress(key)
         
         img = self.environment.get_camera_image()
+        if self._image_size is None:
+            self._image_size = img.shape[1], img.shape[0]
+            print(f"Image size: {self._image_size}")
 
         if img is None:
             img = np.zeros((1080,1920//2,3), dtype=np.uint8)
