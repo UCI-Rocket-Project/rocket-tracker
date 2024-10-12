@@ -136,7 +136,7 @@ class Tracker:
             self.logger.add_scalar("telemetry/v_north", telem_measurements.v_north, time*100)
             self.logger.add_scalar("telemetry/v_east", telem_measurements.v_east, time*100)
             self.logger.add_scalar("telemetry/v_down", telem_measurements.v_down, time*100)
-            self.filter.predict_update_telem(time, z)
+            # self.filter.predict_update_telem(time, z)
         
         if pixel_pos is None and telem_measurements is None:
             try:

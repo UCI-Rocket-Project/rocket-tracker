@@ -4,6 +4,7 @@ from .environment import Environment
 from src.component_algos.img_tracking import YOLOImageTracker, NoDetectionError
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+import warnings
 
 class VisionOnlyTracker:
     def __init__(self, 
@@ -37,6 +38,8 @@ class VisionOnlyTracker:
             pixel_pos = self.img_tracker.estimate_pos(img)[:2]
         except NoDetectionError:
             pixel_pos = None
+            warnings.warn(f'No detection found in image at time {time}')
+            return
 
         x_err = pixel_pos[0] - img.shape[1]//2
         y_err = pixel_pos[1] - img.shape[0]//2

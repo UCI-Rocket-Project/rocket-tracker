@@ -151,7 +151,7 @@ class JoystickCommander:
             self._toggle_tracking()
         elif key == ord('r'):
             self._toggle_recording()
-        else:
+        elif not self.tracking:
             self.environment.move_telescope(0,0)
 
     def _update_display(self, img: np.ndarray, time: float):

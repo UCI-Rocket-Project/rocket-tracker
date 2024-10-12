@@ -55,6 +55,7 @@ class Sim(ShowBase):
 
         self.disableMouse()
 
+        self.logger = SummaryWriter("runs/simulation/true")
         self.rocket_model = self.loader.loadModel("models/rocket.bam")
         self.rocket_model.setScale(0.5, 0.5, 0.5)
         self.rocket_model.setHpr(0,0,0)
@@ -67,13 +68,12 @@ class Sim(ShowBase):
         # fov should be around 0.9 degrees IRL
         # self.camera_fov = np.rad2deg(2*np.arctan(self.camera_res[0]/(2*focal_len_pixels)))
         self.cam_focal_len_pixels = focal_len_pixels
-        self.telescope = SimTelescope(-69.62, 0)
+        self.telescope = SimTelescope(-69.62, 0, self.logger)
         # camera is at (0,0,0) but that's implicit
 
         self.pad_geodetic_pos = np.array([35.347104, -117.808953, 620])
         self.cam_geodetic_location = np.array([35.34222222, -117.82500000, 620])
 
-        self.logger = SummaryWriter("runs/simulation/true")
         self.launch_time = 2
         self.rocket = Rocket(self.pad_geodetic_pos, self.launch_time)
         rocket_pos_enu = np.array(ecef2enu(*self.rocket.get_position_ecef(0), *self.cam_geodetic_location))
@@ -155,7 +155,7 @@ class Sim(ShowBase):
             
         estimate_logger = SummaryWriter("runs/simulation/pred")
         
-        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger, auto_track_time = self.launch_time - 1)
+        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger, auto_track_time = self.launch_time - 1, vision_only=True)
 
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
         self.prev_rocket_position = None
