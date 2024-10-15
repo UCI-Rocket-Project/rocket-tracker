@@ -155,7 +155,7 @@ class Sim(ShowBase):
             
         estimate_logger = SummaryWriter("runs/simulation/pred")
         
-        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger, auto_track_time = self.launch_time - 1, vision_only=True)
+        self.controller = JoystickCommander(SimulationEnvironment(), estimate_logger, auto_track_time = self.launch_time - 1, vision_only=False)
 
         self.taskMgr.add(self.rocketPhysicsTask, "Physics")
         self.prev_rocket_position = None

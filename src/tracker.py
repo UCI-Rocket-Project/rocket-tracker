@@ -30,6 +30,10 @@ class Tracker:
         self.logger = logger
         self.x_controller = PIDController(5,1,1)
         self.y_controller = PIDController(5,1,1)
+
+        k = 1e-3
+        self.pixel_x_controller = PIDController(k*5,k*1,k*1)
+        self.pixel_y_controller = PIDController(k*5,k*1,k*1)
         self.mpc_controller = MPCController()
         self.gps_pos = environment.get_cam_pos_gps() # initial position of mount in GPS coordinates (lat,lng,alt)
         self.environment = environment
@@ -39,6 +43,7 @@ class Tracker:
 
         self.img_tracker = img_tracker
         self.active_tracking = False
+        self.frames_not_seen = 0
 
     def _pixel_pos_to_az_alt(self, pixel_pos: np.ndarray) -> tuple[float,float]:
         az = -np.arctan2(pixel_pos[0] - self.camera_res[0] / 2, self.focal_len_pixels)
@@ -67,6 +72,20 @@ class Tracker:
         self.launch_detector = None
         self.active_tracking = True
         self.img_tracker.start_new_tracking()
+    
+    def _control_with_pixel_coords(self, pixel_pos: tuple[int, int], img: np.ndarray, time: float):
+        x_err = pixel_pos[0] - img.shape[1]//2
+        y_err = pixel_pos[1] - img.shape[0]//2
+
+        input_x = self.pixel_x_controller.step(-x_err)
+        input_y = self.pixel_y_controller.step(-y_err)
+        MAX_SLEW_RATE_AZI = 8 
+        MAX_SLEW_RATE_ALT = 6
+        x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
+        y_clipped = np.clip(input_y,-MAX_SLEW_RATE_ALT,MAX_SLEW_RATE_ALT)
+        self.environment.move_telescope(x_clipped, y_clipped)
+        self.logger.add_scalar("mount/x_input", x_clipped, time*100)
+        self.logger.add_scalar("mount/y_input", y_clipped, time*100)
 
     @line_profiler.profile
     def update_tracking(self, img: np.ndarray, telem_measurements: TelemetryData, time: float, control_scope: bool):
@@ -76,6 +95,24 @@ class Tracker:
         `gt_pos`: ground truth pixel position of rocket (for logging error and mocking out the pixel tracking algorithm)
         `pos_estimate`: estimated position of rocket relative to the mount, where the mount 
         is at (0,0,0) and (0,0) az/alt is  towards positive Y, and Z is up
+
+        1. run object detection on image
+        2. launch detection
+        3. determine whether object detection should be used for control setpoint
+            Since the randomness in object detection isn't even close to gaussian, I think a kalman filter
+            approach might be falling short. Need to understand bayesian filters more. THe problem is that
+            instead of a weighted average of the bounding box and telemetry, the filter needs to
+            completely trust the object detection until it fails and then use the telemetry as a backup.
+            
+            Factors that go into object detection confidence:
+            a. What is the bounding box confidence YOLO returns?
+            b. Does the shape of the bounding box match up with our prediction?
+            c. Does the location of the box center match up with our prediction?
+            d. How many bounding boxes did YOLO return?
+
+        4. use either pixel coordinates or angle offset for PID control.
+
+
         '''
 
         if hasattr(self.environment, "get_ground_truth_pixel_loc"):
@@ -196,19 +233,28 @@ class Tracker:
         self.logger.add_scalar("mount/distance", distance_to_rocket, time*100)
         self.environment.move_focuser(focuser_pos)
 
-        mpc_input = self.mpc_controller.step(self.filter, (current_az, current_alt))
-        input_x = self.x_controller.step(-az_err)
-        input_y = self.y_controller.step(-alt_err)
-        MAX_SLEW_RATE_AZI = 8 
-        MAX_SLEW_RATE_ALT = 6
-        x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
-        min_y_input = 0 if current_alt <=0 else -MAX_SLEW_RATE_ALT
-        y_clipped = np.clip(input_y,min_y_input,MAX_SLEW_RATE_ALT)
-        self.environment.move_telescope(x_clipped, y_clipped)
-        self.logger.add_scalar("mount/x_input", x_clipped, time*100)
-        self.logger.add_scalar("mount/y_input", y_clipped, time*100)
-        self.logger.add_scalar("mount/mpc_x_input", mpc_input[0], time*100)
-        self.logger.add_scalar("mount/mpc_y_input", mpc_input[1], time*100)
+        if pixel_pos is None:
+            print(f'Pixel position zero')
+            self.frames_not_seen += 1
+
+        if self.frames_not_seen > 10:
+            mpc_input = self.mpc_controller.step(self.filter, (current_az, current_alt))
+            input_x = self.x_controller.step(-az_err)
+            input_y = self.y_controller.step(-alt_err)
+            MAX_SLEW_RATE_AZI = 8 
+            MAX_SLEW_RATE_ALT = 6
+            x_clipped = np.clip(input_x,-MAX_SLEW_RATE_AZI,MAX_SLEW_RATE_AZI)
+            min_y_input = 0 if current_alt <=0 else -MAX_SLEW_RATE_ALT
+            y_clipped = np.clip(input_y,min_y_input,MAX_SLEW_RATE_ALT)
+            self.environment.move_telescope(x_clipped, y_clipped)
+            self.logger.add_scalar("mount/x_input", x_clipped, time*100)
+            self.logger.add_scalar("mount/y_input", y_clipped, time*100)
+            self.logger.add_scalar("mount/mpc_x_input", mpc_input[0], time*100)
+            self.logger.add_scalar("mount/mpc_y_input", mpc_input[1], time*100)
+        elif pixel_pos is not None:
+            self._control_with_pixel_coords(pixel_pos, img, time)
+            self.frames_not_seen = 0
+        # if not seen but for less than 10 frames, just don't give any input. The telescope will keep its current slew rate.
 
     def stop_tracking(self):
         self.x_controller = PIDController(5,5,1)
