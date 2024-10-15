@@ -54,6 +54,6 @@ class YOLOImageTracker(BaseImageTracker):
                 ret = box_xywh
             cv.putText(img, f"{scores[i]:.2f}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             cv.rectangle(img, (x1,y1), (x2,y2), color, 2)
-        if np.max(scores) < 0.6: # TODO: instead of doing this, let the kalman filter reject low-confidence boxes that don't match the predictions
+        if np.max(scores) < 0.4: # TODO: instead of doing this, let the kalman filter reject low-confidence boxes that don't match the predictions
             raise NoDetectionError("No high confidence detection found in image")
         return ret
