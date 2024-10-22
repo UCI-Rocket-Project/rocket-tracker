@@ -1,0 +1,1 @@
+export LD_LIBRARY_PATH=/home/eric/code/rocket-tracker/py-zwo-eaf/src/sdk/lib/x64:/usr/lib/:$LD_LIBRARY_PATH
