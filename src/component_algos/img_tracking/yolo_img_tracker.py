@@ -10,10 +10,14 @@ from src.component_algos.img_tracking.base_image_tracker import BaseImageTracker
 CURRENT_FILEPATH = os.path.dirname(os.path.abspath(__file__))
 
 class YOLOImageTracker(BaseImageTracker):
-    def __init__(self):
+    def __init__(self, use_coco = False):
+        if use_coco:
+            weights_file = 'coco_yolo11n.onnx'
+        else:
+            weights_file = 'rocket_yolo11n.onnx'
         self.yolo_pipeline = Pipeline.create(
             task="yolov8",
-            model_path=f"{CURRENT_FILEPATH}/rocket_yolo11n.onnx",   # sparsezoo stub or path to local ONNX
+            model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
         )
 
         self.tracked_id = None
