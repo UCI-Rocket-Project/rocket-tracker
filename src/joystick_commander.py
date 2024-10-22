@@ -1,4 +1,5 @@
 from .environment import Environment
+import warnings
 from .tracker import Tracker
 from .vision_only_tracker import VisionOnlyTracker
 from src.component_algos.img_tracking import YOLOImageTracker
@@ -46,10 +47,11 @@ class JoystickCommander:
         self._tracking = False
 
         self.gain = 0
-        self.exposure = 1/30
+        self.exposure = int(1000*1/60)
 
         focuser_bounds = np.array(environment.get_focuser_bounds())
-        self.focuser_offsets = np.clip(np.logspace(*np.log10(focuser_bounds+1e-6), 100), *focuser_bounds)
+        # self.focuser_offsets = np.clip(np.logspace(*np.log10(focuser_bounds+1e-6), 100), *focuser_bounds)
+        self.focuser_offsets = np.linspace(*focuser_bounds, 100)
         self.focuser_index = np.argmin(np.abs(self.focuser_offsets - environment.get_focuser_position()))
 
         self.logger = logger
@@ -95,12 +97,20 @@ class JoystickCommander:
             self.environment.set_camera_settings(self.gain, self.exposure)
 
         elif button == BUTTON_LEFT_BUMPER:
-            self.focuser_index = min(self.focuser_index+2, len(self.focuser_offsets)-1)
-            self.environment.move_focuser(self.focuser_offsets[self.focuser_index])
+            new_index = min(self.focuser_index+2, len(self.focuser_offsets)-1)
+            try:
+                self.environment.move_focuser(int(self.focuser_offsets[self.focuser_index]))
+                self.focuser_index = new_index
+            except ValueError:
+                warnings.warn('Ignored focuser command. It is currently in motion.')
         
         elif  button == BUTTON_LEFT_TRIGGER:
-            self.focuser_index = max(self.focuser_index-1, 0)
-            self.environment.move_focuser(self.focuser_offsets[self.focuser_index])
+            new_index = max(self.focuser_index-1, 0)
+            try:
+                self.environment.move_focuser(int(self.focuser_offsets[self.focuser_index]))
+                self.focuser_index = new_index
+            except ValueError:
+                warnings.warn('Ignored focuser command. It is currently in motion.')
 
         elif button == BUTTON_SQUARE:
             print("Tracking toggled")
@@ -151,15 +161,16 @@ class JoystickCommander:
             self._toggle_tracking()
         elif key == ord('r'):
             self._toggle_recording()
-        elif not self.tracking:
-            self.environment.move_telescope(0,0)
+        # elif not self.tracking:
+        #     self.environment.move_telescope(0,0)
 
     def _update_display(self, img: np.ndarray, time: float):
         # draw current position
-        cv.rectangle(img, (10,50), (200,0), (0,0,0), -1)
+        cv.rectangle(img, (10,100), (200,0), (0,0,0), -1)
         azi, alt = self.environment.get_telescope_orientation()
         readout_text = ""
         readout_text += f"Gain: {self.gain}\n"
+        readout_text += f"Exposure: {self.exposure}\n"
         readout_text += f"Focuser: {self.focuser_offsets[self.focuser_index]:.7f}\n"
         readout_text += f"azi: {azi:.2f} alt: {alt:.2f}\n"
         readout_text += f"time: {time:.2f}\n"
