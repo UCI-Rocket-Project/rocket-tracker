@@ -1,7 +1,7 @@
 import numpy as np
 from .utils import TelemetryData
 from .environment import Environment
-from zr10 import SIYISDK, SIYISTREAM
+from .zr10 import SIYISDK, SIYISTREAM
 
 class ZR10Environment(Environment):
     def __init__(self):
@@ -20,10 +20,13 @@ class ZR10Environment(Environment):
         return self.siyi_sdk.getAttitudeSpeed()[:2]
 
     def move_telescope(self, v_azimuth: float, v_altitude: float):
+        v_azimuth = -int(v_azimuth/8*100)
+        v_altitude = int(v_altitude/6*100)
         self.siyi_sdk.requestGimbalSpeed(v_azimuth, v_altitude)
 
     def get_camera_image(self) -> np.ndarray:
-        return self.siyi_stream.get_frame()
+        return np.ascontiguousarray(self.siyi_stream.get_frame(), dtype=np.uint8)
+        # return np.zeros((1080, 1920, 3), dtype=np.uint8)
 
     def set_camera_settings(self, gain: int, exposure: int):
         pass
@@ -39,4 +42,8 @@ class ZR10Environment(Environment):
 
     def get_focuser_bounds(self) -> tuple[int, int]:
         return (0, 0)
+    
+    def __del__(self):
+        self.siyi_stream.disconnect()
+        self.siyi_sdk.disconnect()
 

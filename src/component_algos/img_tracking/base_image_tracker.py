@@ -1,8 +1,6 @@
 
 import numpy as np
 import cv2 as cv
-from deepsparse import Pipeline
-from deepsparse.yolo import YOLOOutput
 from abc import ABC
 
 import os

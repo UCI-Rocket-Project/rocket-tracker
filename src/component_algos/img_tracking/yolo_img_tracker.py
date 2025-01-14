@@ -1,7 +1,8 @@
 import numpy as np
 import cv2 as cv
-from deepsparse import Pipeline
-from deepsparse.yolo import YOLOOutput
+# from deepsparse import Pipeline
+# from deepsparse.yolo import YOLOOutput
+from ultralytics import YOLO
 
 import os
 
@@ -15,10 +16,12 @@ class YOLOImageTracker(BaseImageTracker):
             weights_file = 'coco_yolo11n.onnx'
         else:
             weights_file = 'rocket_yolo11n.onnx'
-        self.yolo_pipeline = Pipeline.create(
-            task="yolov8",
-            model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
-        )
+        # self.yolo_pipeline = Pipeline.create(
+        #     task="yolov8",
+        #     model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
+        # )
+
+        self.model = YOLO('yolo11n.torchscript', task='detect')
 
         self.tracked_id = None
         self.reset_tracking = False
@@ -35,10 +38,12 @@ class YOLOImageTracker(BaseImageTracker):
         # TODO: add tracking on top of this. See previous file history for how the logic for handling tracking ids was done.
         # DeepSparse doesn't support tracking yet, so we'll have to implement it ourselves.
 
-        yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])#self.model.track(img, verbose=False, persist=True)[0]
+        # yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])
+        yolo_results = self.model.track(img, verbose=False, persist=True)[0]
 
-        boxes = yolo_results.boxes[0]
-        scores = yolo_results.scores[0]
+        boxes = yolo_results.boxes.xyxy.cpu().numpy()
+        scores = yolo_results.boxes.conf.cpu().numpy()
+        
         if len(boxes) == 0:
             raise NoDetectionError("No YOLO detections found in image")
 
@@ -58,6 +63,7 @@ class YOLOImageTracker(BaseImageTracker):
                 ret = box_xywh
             cv.putText(img, f"{scores[i]:.2f}", (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             cv.rectangle(img, (x1,y1), (x2,y2), color, 2)
+            cv.circle(img, (box_xywh[0], box_xywh[1]), 10, color, -1)
         if np.max(scores) < 0.4: # TODO: instead of doing this, let the kalman filter reject low-confidence boxes that don't match the predictions
             raise NoDetectionError("No high confidence detection found in image")
         return ret

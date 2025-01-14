@@ -12,8 +12,10 @@ class VisionOnlyTracker:
                 logger: SummaryWriter
                 ):
         k = 1e-3
-        self.x_controller = PIDController(k*5,k*1,k*1)
-        self.y_controller = PIDController(k*5,k*1,k*1)
+        # self.x_controller = PIDController(k*5,k*1,k*1)
+        # self.y_controller = PIDController(k*5,k*1,k*1)
+        self.x_controller = PIDController(6e-3, 0, 2e-3)
+        self.y_controller = PIDController(6e-3, 0, 2e-3)
         self.environment = environment
         self.logger = logger
 
@@ -55,3 +57,7 @@ class VisionOnlyTracker:
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
+    
+    def stop_tracking(self):
+        pass
+

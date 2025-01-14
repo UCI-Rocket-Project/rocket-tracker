@@ -28,7 +28,7 @@ BUTTON_LEFT_TRIGGER = 6
 BUTTON_RIGHT_TRIGGER = 7
 
 class JoystickCommander:
-    def __init__(self, environment: Environment, logger: SummaryWriter, vision_only = False, auto_track_time = None):
+    def __init__(self, environment: Environment, logger: SummaryWriter, vision_only = True, auto_track_time = None):
         self.environment  = environment
         pygame.init()
         pygame.joystick.init()
@@ -117,8 +117,8 @@ class JoystickCommander:
             self._toggle_tracking()
 
         elif button == BUTTON_X:
-            print("Quitting")
-            quit()
+            print("X button pressed; quitting")
+            raise Exception("quitting")
 
     def _joystick_control(self):
         slew_x = 0
