@@ -55,3 +55,6 @@ class VisionOnlyTracker:
         self.environment.move_telescope(x_clipped, y_clipped)
         self.logger.add_scalar("mount/x_input", x_clipped, time*100)
         self.logger.add_scalar("mount/y_input", y_clipped, time*100)
+    
+    def stop_tracking(self):
+        pass

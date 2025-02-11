@@ -16,10 +16,10 @@ LEFT_AXIS_Y = 1
 RIGHT_AXIS_X = 3
 RIGHT_AXIS_Y = 4
 
-BUTTON_X = 0
-BUTTON_CIRCLE = 1
-BUTTON_TRIANGLE = 2
-BUTTON_SQUARE = 3
+BUTTON_X = 1
+BUTTON_CIRCLE = 2
+BUTTON_TRIANGLE = 3
+BUTTON_SQUARE = 0
 
 BUTTON_LEFT_BUMPER = 4
 BUTTON_RIGHT_BUMPER = 5
@@ -61,6 +61,8 @@ class JoystickCommander:
         self._auto_track_time = auto_track_time
         self._has_auto_tracked = False # flag to prevent auto-tracking from happening more than once
         self._image_size: tuple[int,int] = None
+        cv.namedWindow('Camera Image', cv.WINDOW_NORMAL)
+        cv.resizeWindow('Camera Image', (1000, 562))
 
     def _toggle_tracking(self):
         if not self._tracking:

@@ -10,6 +10,14 @@
             "justMyCode": true
         },
         {
+            "name": "Python: debug module src.main_irl",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "module": "src.main_irl",
+            "justMyCode": true
+        },
+        {
             "name": "Python: debug module src.component_algos.visualize",
             "type": "python",
             "request": "launch",

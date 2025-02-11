@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 from deepsparse import Pipeline
 from deepsparse.yolo import YOLOOutput
+from ultralytics import YOLO
 
 import os
 
@@ -14,11 +15,12 @@ class YOLOImageTracker(BaseImageTracker):
         if use_coco:
             weights_file = 'coco_yolo11n.onnx'
         else:
-            weights_file = 'rocket_yolo11n.onnx'
-        self.yolo_pipeline = Pipeline.create(
-            task="yolov8",
-            model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
-        )
+            weights_file = 'rocket_yolo11s.engine'
+        # self.yolo_pipeline = Pipeline.create(
+        #     task="yolov8",
+        #     model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
+        # )
+        self.model = YOLO(f"{CURRENT_FILEPATH}/{weights_file}")
 
         self.tracked_id = None
         self.reset_tracking = False
@@ -35,10 +37,14 @@ class YOLOImageTracker(BaseImageTracker):
         # TODO: add tracking on top of this. See previous file history for how the logic for handling tracking ids was done.
         # DeepSparse doesn't support tracking yet, so we'll have to implement it ourselves.
 
-        yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])#self.model.track(img, verbose=False, persist=True)[0]
+        # yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])#self.model.track(img, verbose=False, persist=True)[0]
+        yolo_results = self.model.predict(img)[0]
 
-        boxes = yolo_results.boxes[0]
-        scores = yolo_results.scores[0]
+        # boxes = yolo_results.boxes[0]
+        # scores = yolo_results.scores[0]
+        boxes = yolo_results.boxes.xyxy.cpu().numpy()
+        scores = yolo_results.boxes.conf.cpu().numpy()
+
         if len(boxes) == 0:
             raise NoDetectionError("No YOLO detections found in image")
 
