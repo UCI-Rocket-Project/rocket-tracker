@@ -1,7 +1,5 @@
 import numpy as np
 import cv2 as cv
-from deepsparse import Pipeline
-from deepsparse.yolo import YOLOOutput
 from ultralytics import YOLO
 
 import os
@@ -12,11 +10,12 @@ CURRENT_FILEPATH = os.path.dirname(os.path.abspath(__file__))
 
 class YOLOImageTracker(BaseImageTracker):
     def __init__(self, use_coco = False):
-        if use_coco:
-            weights_file = 'coco_yolo11n.onnx'
-        else:
-            weights_file = 'rocket_yolo11s.engine'
+        # if use_coco:
+        #     weights_file = 'coco_yolo11n.onnx'
+        # else:
+        #     weights_file = 'rocket_yolo11s.engine'
         # self.yolo_pipeline = Pipeline.create(
+        weights_file='yolo11n.pt'
         #     task="yolov8",
         #     model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
         # )

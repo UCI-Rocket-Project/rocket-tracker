@@ -163,8 +163,8 @@ class JoystickCommander:
             self._toggle_tracking()
         elif key == ord('r'):
             self._toggle_recording()
-        # elif not self.tracking:
-        #     self.environment.move_telescope(0,0)
+        elif not self.tracking and not self.has_joystick:
+            self.environment.move_telescope(0,0)
 
     def _update_display(self, img: np.ndarray, time: float):
         # draw current position
