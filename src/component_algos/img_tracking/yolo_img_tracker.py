@@ -15,7 +15,8 @@ class YOLOImageTracker(BaseImageTracker):
         # else:
         #     weights_file = 'rocket_yolo11s.engine'
         # self.yolo_pipeline = Pipeline.create(
-        weights_file='yolo11n.pt'
+        # weights_file='yolo11n.pt'
+        weights_file = 'rocket_yolo11s.pt'
         #     task="yolov8",
         #     model_path=f"{CURRENT_FILEPATH}/{weights_file}",   # sparsezoo stub or path to local ONNX
         # )
@@ -37,7 +38,7 @@ class YOLOImageTracker(BaseImageTracker):
         # DeepSparse doesn't support tracking yet, so we'll have to implement it ourselves.
 
         # yolo_results: YOLOOutput = self.yolo_pipeline(images=[img])#self.model.track(img, verbose=False, persist=True)[0]
-        yolo_results = self.model.predict(img)[0]
+        yolo_results = self.model.predict(img, imgsz=1024)[0]
 
         # boxes = yolo_results.boxes[0]
         # scores = yolo_results.scores[0]
