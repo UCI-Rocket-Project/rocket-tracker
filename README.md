@@ -4,7 +4,7 @@ https://github.com/UCI-Rocket-Project/rocket-tracker/assets/48658337/dc37688a-62
 
 ## Description:
 Project that tracks rocket launches with a gimballed telescope. Doing this project involved:
-- Writing python bindings for the camera drivers for an obscure astronomy camera with Cython
+- Writing python bindings for the camera drivers for an astronomy camera with Cython
 - Disilling an object detection foundation model to a smaller network to detect rockets in images and exporting that model to run fast on CPU
 - Designing a kalman filter to predict rocket motion and fuse GPS telemetry with bounding boxes from object detection
 - Making a custom simulator to integration test rocket dynamics predictions and computer vision
@@ -31,4 +31,8 @@ To run the tracker IRL, do `python3 control_telescope.py`
 
 ## Installing camera software:
 https://pypi.org/project/camera-zwo-asi/
-![project screenshot](https://github.com/user-attachments/assets/c4d861d7-fc96-4b68-a188-2d937a7022a3)
+
+## Edit of some clips from the project
+![project screenshot](https://github.com/user-attachments/assets/c64fa475-6e58-4e88-8062-6ab5bb69b723)
+
+
